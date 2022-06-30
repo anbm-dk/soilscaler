@@ -18,15 +18,11 @@ use_git()
 
 R.version.string
 
-update.packages(ask = FALSE, checkBuilt = TRUE)
+# update.packages(ask = FALSE, checkBuilt = TRUE)
 
-
-
-
-
-usethis::git_default_branch_configure()
-
-usethis::create_github_token()
+# usethis::git_default_branch_configure()
+#
+# usethis::create_github_token()
 
 # gitcreds::gitcreds_set() # For personal access token
 
