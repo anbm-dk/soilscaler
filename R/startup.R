@@ -3,10 +3,16 @@
 install.packages(c("devtools", "roxygen2", "testthat", "knitr", "pkgload"))
 
 library(devtools)
+library(usethis)
 
 # use_devtools()
 
 # devtools::dev_sitrep() Doesn't work
+
+use_git_config(
+  user.name = "Anders Bjørn Møller"
+  , user.email = "perserkongen@gmail.com"
+)
 
 use_git()
 
@@ -14,12 +20,9 @@ R.version.string
 
 update.packages(ask = FALSE, checkBuilt = TRUE)
 
-library(usethis)
 
-use_git_config(
-  user.name = "Anders Bjørn Møller"
-  , user.email = "perserkongen@gmail.com"
-  )
+
+
 
 usethis::git_default_branch_configure()
 
