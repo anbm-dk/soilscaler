@@ -184,142 +184,115 @@ divisors <- c(rep(10, 6), rep(100, 2))
 
 soilgrids <- ifel(soilgrids == 32767.00, NA, soilgrids/divisors)
 
-# Run a model
-# Define parameters
+# Test model
 
-observations <- obs
-target <- 'clay'
-
-useDK_map <- FALSE
+useDK_map <- TRUE
 if(useDK_map)
 {
-  coarse <- DK_2014$DK_clay_mean
-  coarse_unc <- DK_2014$DK_clay_SD
+  my_input <- DK_2014$DK_clay_mean
+  my_input_unc <- DK_2014$DK_clay_SD
 } else {
-  coarse <- soilgrids$DK_00_20_clay_mean
-  coarse_unc <- soilgrids$DK_00_20_clay_unc
+  my_input <- soilgrids$DK_00_20_clay_mean
+  my_input_unc <- soilgrids$DK_00_20_clay_unc
 }
 
-fine <- EC_list
+my_covariates <- list()
 
-flatten_coarse <- FALSE
-
-# Add checks for consistency
-
-# Extract coarse
-
-if(!is.null(coarse_unc))
+for(i in 1:length(sites))
 {
-  coarse <- c(coarse, coarse_unc)
-  names(coarse) <- c('coarse', 'coarse_unc')
+  my_covariates[[i]] <- c(
+    cov_list[[i]]
+    , EC_list[[i]]
+    , ortho_list[[i]]
+  ) %>%
+    signif(digits = 4)
 }
 
-coarse_resampled <- list()
+getwd() %>% paste0(., '/R/make_downscaler.R') %>% source()
 
-if(!flatten_coarse)
-{
-  for(i in 1:length(fine))
-  {
-    if(terra::crs(coarse, proj = TRUE) ==
-       terra::crs(fine[[i]], proj = TRUE))
-    {
-      coarse_resampled[[i]] <- terra::resample(coarse, fine[[i]])
-    } else {
-      coarse_resampled[[i]] <- terra::project(coarse, fine[[i]])
-    }
-    coarse_resampled[[i]] %<>% terra::mask(., mask = fine[[i]])
-    observations[[i]] %<>%
-      terra::extract(coarse_resampled[[i]], .) %>%
-      dplyr::select(., -1) %>%
-      merge(observations[[i]], .)
-  }
-} else {
-  for(i in 1:length(observations))
-  {
-    if(terra::crs(coarse, proj = TRUE) !=
-       terra::crs(observations[[i]], proj = TRUE))
-    {
-      coarse_i <- observations[[i]] %>%
-        terra::project(., y = coarse) %>%
-        terra::extract(coarse, .) %>%
-        dplyr::select(., -1)
+downscaler1 <- make_downscaler(
+  observations = obs
+  , target     = 'clay'
+  , model_type = 'glmboost'
+  , input      = my_input
+  , input_unc  = my_input_unc
+  , make_maps  = TRUE
+  , unc_factor = 1
+  , flatten_input      = TRUE
+  , input_as_covariate = TRUE
+  , covariates         = my_covariates
+  , scale_covariates   = 'by_input'
+  , center_covariates  = TRUE
+  , scale_obs    = 'no'
+  , center_obs   = TRUE
+  , results_plot = TRUE
+)
 
-    } else {
-      coarse_i <- observations[[i]] %>%
-        terra::extract(coarse, .) %>%
-        dplyr::select(., -1)
-    }
-    mean_i <- coarse_i %>%
-      apply(., 2, mean)
-    observations[[i]] %<>% merge(., coarse_i)
-    coarse_resampled[[i]] <- fine[[i]]*0 + mean_i
-  }
-}
+downscaler1
 
 
-# Plot results
+# Plot the maps for all sites in one figure
 
-library(ggplot2)
-library(gridExtra)
-library(rasterVis)
-
-plotted <- coarse_resampled
-lyr <- 1
-
-mybreaks <- function(x, interval = 100)
-{
-  out <- seq(from = x[1], to = x[2], by = interval)
-  return(out)
-}
-
-if(length(names(plotted[[1]])) > 1)
-{
-  plotlist <- lapply(
-    plotted
-    , function(x)
-    {
-      out <- gplot(x[[lyr]]) +
-        geom_tile(aes(fill = value)) +
-        facet_wrap(~ variable) +
-        coord_equal() +
-        scale_x_continuous(breaks = mybreaks) +
-        scale_y_continuous(breaks = mybreaks) +
-        scale_fill_continuous(na.value = NA) +
-        theme(axis.text.x=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks=element_blank(),
-              axis.title.x=element_blank(),
-              axis.title.y=element_blank())
-      return(out)
-    }
-  )
-} else {
-  plotlist <- lapply(
-    plotted
-    , function(x)
-    {
-      out <- gplot(x) +
-        geom_tile(aes(fill = value)) +
-        coord_equal() +
-        scale_x_continuous(breaks = mybreaks) +
-        scale_y_continuous(breaks = mybreaks) +
-        scale_fill_continuous(na.value = NA) +
-        theme(axis.text.x=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks=element_blank(),
-              axis.title.x=element_blank(),
-              axis.title.y=element_blank())
-      return(out)
-    }
-  )
-}
-
-do.call("grid.arrange"
-        , c(plotlist
-            , ncol = 3
-            )
-        )
-
+# library(ggplot2)
+# library(gridExtra)
+# library(rasterVis)
+#
+# plotted <- input_resampled
+# lyr <- 1
+#
+# mybreaks <- function(x, interval = 100)
+# {
+#   out <- seq(from = x[1], to = x[2], by = interval)
+#   return(out)
+# }
+#
+# if(length(names(plotted[[1]])) > 1)
+# {
+#   plotlist <- lapply(
+#     plotted
+#     , function(x)
+#     {
+#       out <- gplot(x[[lyr]]) +
+#         geom_tile(aes(fill = value)) +
+#         facet_wrap(~ variable) +
+#         coord_equal() +
+#         scale_x_continuous(breaks = mybreaks) +
+#         scale_y_continuous(breaks = mybreaks) +
+#         scale_fill_continuous(na.value = NA) +
+#         theme(axis.text.x=element_blank(),
+#               axis.text.y=element_blank(),
+#               axis.ticks=element_blank(),
+#               axis.title.x=element_blank(),
+#               axis.title.y=element_blank())
+#       return(out)
+#     }
+#   )
+# } else {
+#   plotlist <- lapply(
+#     plotted
+#     , function(x)
+#     {
+#       out <- gplot(x) +
+#         geom_tile(aes(fill = value)) +
+#         coord_equal() +
+#         scale_x_continuous(breaks = mybreaks) +
+#         scale_y_continuous(breaks = mybreaks) +
+#         scale_fill_continuous(na.value = NA) +
+#         theme(axis.text.x=element_blank(),
+#               axis.text.y=element_blank(),
+#               axis.ticks=element_blank(),
+#               axis.title.x=element_blank(),
+#               axis.title.y=element_blank())
+#       return(out)
+#     }
+#   )
+# }
+#
+# do.call("grid.arrange"
+#         , c(plotlist
+#             , ncol = 3
+#             )
+#         )
 
 # To do
 # 1: Crop covariates to field extent
