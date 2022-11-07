@@ -1,4 +1,6 @@
-# Import data_raw
+## code to prepare `DATASET` dataset goes here
+
+# Import data-raw
 
 library(terra)
 library(magrittr)
@@ -6,12 +8,12 @@ library(dplyr)
 
 root <- getwd()
 
-## 1: Load data_raw
+## 1: Load data-raw
 
 # Load EC rasters
 
 EC_list <- root %>%
-  paste0(., '/data_raw/EC_raster/') %>%
+  paste0(., '/data-raw/EC_raster/') %>%
   list.files(full.names = TRUE) %>%
   lapply(
     function(x) rast(x)
@@ -21,12 +23,12 @@ EC_list <- root %>%
 # Load covariates
 
 sites <- root %>%
-  paste0(., '/data_raw/covariates/') %>%
+  paste0(., '/data-raw/covariates/') %>%
   list.dirs(full.names = FALSE) %>%
   extract(nchar(.) > 0)
 
 cov_list <- root %>%
-  paste0(., '/data_raw/covariates/') %>%
+  paste0(., '/data-raw/covariates/') %>%
   list.dirs %>%
   extract(-1) %>%
   lapply(
@@ -52,7 +54,7 @@ rm(cov_list2)
 # Load orthophotos
 
 ortho_files <- root %>%
-  paste0(., '/data_raw/ortho/') %>%
+  paste0(., '/data-raw/ortho/') %>%
   list.files(full.names = TRUE)
 
 ortho_list <- list()
@@ -74,7 +76,7 @@ DK_fields <- list()
 for(i in 1:length(sites))
 {
   DK_fields[[i]] <- root %>%
-    paste0(., '/data_raw/general/', sites[i], '/', sites[i], '_field.shp') %>%
+    paste0(., '/data-raw/general/', sites[i], '/', sites[i], '_field.shp') %>%
     vect
   values(DK_fields[[i]]) <- NULL
 }
@@ -86,7 +88,7 @@ field_bare_list <- list()
 for(i in 1:length(sites))
 {
   field_bare_list[[i]] <- root %>%
-    paste0(., '/data_raw/general/', sites[i], '/', sites[i], '_field2.shp') %>%
+    paste0(., '/data-raw/general/', sites[i], '/', sites[i], '_field2.shp') %>%
     vect
   values(field_bare_list[[i]]) <- NULL
 }
@@ -98,7 +100,7 @@ obs <- sites %>%
     function(x)
     {
       x %>%
-        paste0(root, '/data_raw/soil_observations/'
+        paste0(root, '/data-raw/soil_observations/'
                , ., '_coords_tex.txt'
         ) %>%
         read.table(header = TRUE
@@ -170,12 +172,12 @@ names(ortho_list) <- sites
 # Load input maps
 
 DK_2014 <- root %>%
-  paste0(., '/data_raw/input_maps/DK_2014_lite/') %>%
+  paste0(., '/data-raw/input_maps/DK_2014_lite/') %>%
   list.files(full.names = TRUE) %>%
   rast
 
 soilgrids <- root %>%
-  paste0(., '/data_raw/input_maps/soilgrids/') %>%
+  paste0(., '/data-raw/input_maps/soilgrids/') %>%
   list.files(full.names = TRUE) %>%
   rast
 
@@ -183,19 +185,79 @@ divisors <- c(rep(10, 6), rep(100, 2))
 
 soilgrids <- ifel(soilgrids == 32767.00, NA, soilgrids/divisors)
 
+# Round off EC
+
+DK_EC <- lapply(
+  EC_list
+  , function(x)
+  {
+    out <- round(x, 2)
+    return(out)
+  }
+  )
+
+
+# Round off orthophotos
+
+DK_RGB <- lapply(
+  ortho_list
+  , function(x)
+  {
+    out <- x %>%
+      round(0) %>%
+      as.int
+    return(out)
+  }
+)
+
+# Round off covariates
+
+decimals <- c(3, 3, 2, 2, 4, 2, 0, 3, 2, 2, 3, 3, 2, 2)
+
+f1 <- function(x)
+{
+  out <- base::round(x, digits = decimals)
+  return(out)
+}
+
+cov_list3 <- lapply(cov_list, function(r)
+{
+  out <- app(r, f1)
+  crs(out) <- crs(DK_EC[[1]])
+  return(out)
+}
+)
+
+# Crop covariates to field extents
+
+DK_topo <- list()
+
+for(i in 1:length(cov_list))
+{
+  DK_topo[[i]] <- mask(cov_list3[[i]], EC_list[[i]])
+}
+
+
+# Crop input data to areas surrounding fields
 
 # To do
-# 1: Crop covariates to field extent
-# 2: Round off decimals (covariates, EC, ortho)
+# 1: Crop covariates to field extent (OK)
+# 2: Round off decimals (covariates, EC, ortho) [OK]
 # 3: Import input maps (OK)
 # 4: Crop input maps to areas surrounding fields
 # 5: Give names to all the lists (OK)
+# 6: Documentation
 
-# Convert to Rda
+DK_observations <- obs
+names(DK_topo) <- sites
 
-# - Field extents (OK)
-save(DK_fields, file = paste0(root, '/data/DK_fields.Rda'))
-
-
+usethis::use_data(
+  DK_fields
+  , DK_observations
+  , DK_EC
+  , DK_RGB
+  , DK_topo
+  , overwrite = TRUE
+  )
 
 # END

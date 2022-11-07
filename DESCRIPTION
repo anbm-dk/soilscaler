@@ -15,3 +15,6 @@ BugReports: https://github.com/anbm-dk/soilscaler/issues
 Authors@R: 
     person("Anders Bjørn", "Møller", , "anbm@agro.au.dk",
            comment = c(ORCID = "0000-0002-2737-5780"))
+Depends: 
+    R (>= 2.10)
+LazyData: true

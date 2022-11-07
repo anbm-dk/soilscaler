@@ -26,8 +26,7 @@ R.version.string
 
 # gitcreds::gitcreds_set() # For personal access token
 
-
-usethis::use_data()
+usethis::use_data_raw()
 
 # What I need
 
