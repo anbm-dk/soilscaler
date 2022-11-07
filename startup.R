@@ -27,9 +27,7 @@ R.version.string
 # gitcreds::gitcreds_set() # For personal access token
 
 
-# Make description and namespace
 
-use_mit_license()
 
 # What I need
 

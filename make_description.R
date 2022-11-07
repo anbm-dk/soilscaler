@@ -38,4 +38,9 @@ desc$get_authors()
 
 desc
 
+# Write description
+
+desc$write(file = "DESCRIPTION")
+
+
 # END
