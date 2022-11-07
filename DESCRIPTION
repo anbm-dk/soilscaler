@@ -10,6 +10,8 @@ Imports:
     dplyr,
     magrittr,
     terra
+URL: https://github.com/anbm-dk/soilscaler
+BugReports: https://github.com/anbm-dk/soilscaler/issues
 Authors@R: 
     person("Anders Bjørn", "Møller", , "anbm@agro.au.dk",
            comment = c(ORCID = "0000-0002-2737-5780"))

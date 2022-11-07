@@ -5,15 +5,15 @@ library(usethis)
 
 use_mit_license()
 
-desc <- description$new()
-
-desc
+x <- desc(file = "DESCRIPTION")
 
 # Title and description
 
 desc$set(Package = "soilscaler"
          , Title = "Downscale digital soil maps to higher resolutions"
          , Description = "Functions to downscale coarse-resolution soil maps to field scale, using high-resolution covariates and soil observations from other locations."
+         , URL = 'https://github.com/anbm-dk/soilscaler'
+         , BugReports = 'https://github.com/anbm-dk/soilscaler/issues'
          )
 
 # Set dependencies
