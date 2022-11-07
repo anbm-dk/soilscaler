@@ -308,7 +308,7 @@ make_downscaler <- function(
       )
       if(center_obs)
       {
-        output[[i]] %<>% '+' (coarse_resampled[[i]][[1]])
+        output[[i]] %<>% '+' (input_resampled[[i]][[1]])
       }
       # also modify output maps in case of scaling and transformations
       names(output[[i]]) <- 'output'
@@ -326,7 +326,7 @@ make_downscaler <- function(
   }
 
   # Accuracy for input and output maps
-# Include a step to get the final predictions when make_maps is FALSE
+  # Include a step to get the final predictions when make_maps is FALSE
 
   rmse_na <- function(x, y)
   {

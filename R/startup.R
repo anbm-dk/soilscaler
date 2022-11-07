@@ -26,6 +26,11 @@ R.version.string
 
 # gitcreds::gitcreds_set() # For personal access token
 
+
+# Make description and namespace
+
+usethis::create_package("soilscaler")
+
 # What I need
 
 # 1 imput data imported into R
