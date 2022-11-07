@@ -29,7 +29,7 @@ R.version.string
 
 # Make description and namespace
 
-usethis::create_package("soilscaler")
+use_mit_license()
 
 # What I need
 
