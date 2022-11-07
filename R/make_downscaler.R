@@ -377,4 +377,16 @@ make_downscaler <- function(
   return(results)
 }
 
+
+# To do
+# 1: Crop covariates to field extent
+# 2: Round off decimals (covariates, EC, ortho)
+# 3: Import input maps (OK)
+# 4: Crop input maps to areas surrounding fields
+# 5: Give names to all the lists (OK)
+
+# Convert to Rda
+
+# - Field extents
+
 # END

@@ -14,7 +14,7 @@ use_git_config(
   , user.email = "perserkongen@gmail.com"
 )
 
-use_git()
+# use_git()
 
 R.version.string
 
@@ -27,7 +27,7 @@ R.version.string
 # gitcreds::gitcreds_set() # For personal access token
 
 
-
+usethis::use_data()
 
 # What I need
 
