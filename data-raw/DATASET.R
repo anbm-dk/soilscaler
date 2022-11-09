@@ -118,6 +118,18 @@ obs %<>% lapply(function(x)
   select(x, 1:mincols)
 )
 
+obs %<>% lapply(function(x)
+{
+  out <- x
+  colnames(out) <- c('ID', 'UTME', 'UTMN', 'clay', 'silt', 'sand_f', 'sand_c'
+                     , 'SOM')
+  out %<>%
+    mutate(SOC = round(SOM*0.587, 3)) %>%
+    select(-SOM)
+  return(out)
+}
+)
+
 coord_cols <- obs[[1]] %>%
   colnames %>%
   .[2:3]
@@ -240,16 +252,75 @@ for(i in 1:length(cov_list))
 
 # Crop input data to areas surrounding fields
 
+field_extents <- lapply(
+  field_bare_list
+  , function(x)
+  {
+    out <- x %>%
+      ext %>%
+      extend(250) %>%
+      as.polygons
+    return(out)
+  }
+  ) %>%
+  vect
+
+DK_soil_30m <- c(DK_2014[[1]], DK_2014[[6]], DK_2014[[7]], DK_2014[[8]]
+                 , DK_2014[[3]]
+                 )
+
+names(DK_soil_30m) <- c('clay', 'silt', ' sand_f', ' sand_c', 'SOC')
+
+DK_unc_30m <- c(DK_2014[[2]], DK_2014[[4]])
+
+names(DK_unc_30m) <- c('clay_SD', 'SOC_SD')
+
+DK_30m <- list()
+DK_30m_unc <- list()
+
+for(i in 1:length(field_extents))
+{
+  DK_30m[[i]] <- DK_soil_30m %>% crop(field_extents[i])
+  DK_30m_unc[[i]] <- DK_unc_30m %>% crop(field_extents[i])
+}
+
+crs(field_extents) <- crs_all
+field_extents_longlat <- field_extents %>% project(soilgrids)
+
+DK_soilgrids <- soilgrids[[c(1, 7)]]
+DK_soilgrids_unc <- soilgrids[[c(2, 8)]]
+
+names(DK_soilgrids) <- c('clay', 'SOC')
+names(DK_soilgrids_unc) <- c('clay_PI', 'SOC_PI')
+
+DK_soilgrids %<>% mask(field_extents_longlat) %>% round(1)
+DK_soilgrids_unc %<>% mask(field_extents_longlat) %>% round(1)
+
 # To do
 # 1: Crop covariates to field extent (OK)
 # 2: Round off decimals (covariates, EC, ortho) [OK]
 # 3: Import input maps (OK)
-# 4: Crop input maps to areas surrounding fields
+# 4: Crop input maps to areas surrounding fields (OK)
 # 5: Give names to all the lists (OK)
 # 6: Documentation
 
-DK_observations <- obs
+# NB: Take into account non-exportable objects. Use wrap.
+
+DK_fields %<>% vect
+DK_fields$Site <- sites
 names(DK_topo) <- sites
+names(DK_30m) <- sites
+names(DK_30m_unc) <- sites
+
+DK_fields %<>% wrap
+DK_observations <- lapply(obs, function(x) wrap(x))
+DK_EC %<>% lapply(function(x) wrap(x))
+DK_RGB %<>% lapply(function(x) wrap(x))
+DK_topo %<>% lapply(function(x) wrap(x))
+DK_30m %<>% lapply(function(x) wrap(x))
+DK_30m_unc %<>% lapply(function(x) wrap(x))
+DK_soilgrids <- wrap(DK_soilgrids)
+DK_soilgrids_unc <- wrap(DK_soilgrids_unc)
 
 usethis::use_data(
   DK_fields
@@ -257,6 +328,10 @@ usethis::use_data(
   , DK_EC
   , DK_RGB
   , DK_topo
+  , DK_30m
+  , DK_30m_unc
+  , DK_soilgrids
+  , DK_soilgrids_unc
   , overwrite = TRUE
   )
 
