@@ -1,33 +1,54 @@
+#' Train a downscaler model
+#'
+#' @param obs List of spatvector points with observations.
+#' @param targ_name Name of target variable.
+#' @param cov List of SpatRaster objects containing the covariates for prediction.
+#' @param input SpatRaster or list of SpatRaster objects containing the coarse resolution input map.
+#' @param input_unc SpatRaster containing the uncertainty for the coarse-resolution input map.
+#' @param model_type Model type passed to train. Ideally, I should use do.call, so users can pass a list of arguments to the training.
+#' @param make_maps Should the function produce maps for the input sites when run?
+#' @param unc_factor Multiplication factor for the uncertainties. Not implemented.
+#' @param flatten_input Should the input be transformed to a mean value for each site?
+#' @param input_as_cov Transform the input map to a covariate for mapping?
+#' @param scale_cov Should the function scale the covariates relative to the input maps or their own standard deviations?  Default is no scaling.
+#' @param scale_obs Should the function scale the observations relative to the input maps? Back-transformation is automatic for predictions. Default is no scaling.
+#' @param center_cov Should the function center the covariates?
+#' @param center_obs Should the function center the observations? Back-transformation is automatic for predictions.
+#' @param results_plot Should the output contain a plot with the results?
+#' @param save_cov Append the covariates to the output object?
+#' @param save_models Keep the models for mapping as part of the output object?
+#' @returns A downscaler model
+#' @examples
+#' add(1, 1)
+#' add(10, 1)
+#'
+
 # Function to train a downscaler model
 
 make_downscaler <- function(
-    observations = NULL         # List of spatvector points with observations
-    , target = NULL             # Name of target variable
-    , model_type = 'lm'         # Ideally, I should use do.call, so users can pass a list of arguments to the training
-    , input = NULL              # SpatRaster containing the coarse resolution input map
-    , input_unc = NULL          # SpatRaster containing the uncertainty for the coarse resolution input map
-    , make_maps = TRUE          # Should the function produce maps when run?
-    , unc_factor = 1            # not implemented
-    , flatten_input = TRUE
-    , input_as_covariate = TRUE  # not implemented
-    , covariates = NULL
-    , scale_covariates = c('no', 'by_input', 'by_SD')
-    , center_covariates = TRUE
-    , scale_obs = c('no', 'by_input', 'by_SD')
-    , center_obs = TRUE
-    , results_plot = FALSE
-    , save_covariates = FALSE
-    , save_map_models = FALSE
-  )
-{
-  require(caret)
-
+    obs           = NULL,
+    targ_name     = NULL,
+    cov          = NULL,
+    input         = NULL,
+    input_unc     = NULL,
+    model_type    = "lm",
+    make_maps     = TRUE,
+    unc_factor    = 1,
+    flatten_input = TRUE,
+    input_as_cov  = TRUE,
+    scale_cov     = c("no", "by_input", "by_SD"),
+    scale_obs     = FALSE,
+    center_cov    = TRUE,
+    center_obs    = TRUE,
+    results_plot  = FALSE,
+    save_cov      = FALSE,
+    save_models   = FALSE
+    ) {
   # To do: add bootstrapping sequence for uncertainty assessment
   # Include random alterations to basemap in this procedure, based on uncertainty
-  # Include option to use input map as a covariate or not
+  # Include option to use input map as a covariate or not [OK]
   # Include log transformation
-
-  target_name <- target
+  # Inclusion of input maps should be optional
 
   # Add checks for consistency
 
@@ -35,221 +56,257 @@ make_downscaler <- function(
   # check for covariate names
   # check for names in observation objects
   # check for sitenames
+  # Check for number of sites
 
-  sitenames <- sites  # this is a placeholder
+  targ <- targ_name
+  sitenames <- names(obs)
 
   # Extract input
 
-  if(!is.null(input_unc))
-  {
+  if (!is.null(input_unc)) {
     input <- c(input, input_unc)
-    names(input) <- c('input', 'input_unc')
+    names(input) <- c("input", "input_unc")
   }
 
+  listproj <- function(x) {
+    out <- lapply(x, function(x2) {
+      out2 <- terra::crs(x2, proj = TRUE)
+      return(out2)
+    }
+    )
+    return(out)
+  }
+
+  crs_in  <- terra::crs(input, proj = TRUE)
+  crs_cov <- cov %>% listproj
+  crs_obs <- obs %>% listproj
   input_resampled <- list()
+  mean_in <- list()
 
-  if(!flatten_input)
-  {
-    for(i in 1:length(covariates))
-    {
-      if(terra::crs(input, proj = TRUE) ==
-         terra::crs(covariates[[i]], proj = TRUE))
-      {
-        input_resampled[[i]] <- terra::resample(input, covariates[[i]][[1]])
-      } else {
-        input_resampled[[i]] <- terra::project(input, covariates[[i]][[1]])
-      }
-      input_resampled[[i]] %<>% terra::mask(., mask = covariates[[i]][[1]])
-      observations[[i]] %<>%
-        terra::extract(input_resampled[[i]], .) %>%
-        dplyr::select(., -1) %>%
-        base::cbind(observations[[i]], .)
-    }
-  } else {
-    for(i in 1:length(observations))
-    {
-      if(terra::crs(input, proj = TRUE) !=
-         terra::crs(observations[[i]], proj = TRUE))
-      {
-        input_i <- observations[[i]] %>%
-          terra::project(., y = input) %>%
-          terra::extract(input, .) %>%
-          dplyr::select(., -1)
+  # Extract input values
 
-      } else {
-        input_i <- observations[[i]] %>%
-          terra::extract(input, .) %>%
-          dplyr::select(., -1)
-      }
-      mean_i <- input_i %>%
-        apply(., 2, mean)
-      observations[[i]] %<>% base::cbind(., input_i)
-      input_resampled[[i]] <- covariates[[i]][[1]]*0 + mean_i
-      names(input_resampled[[i]]) <- c('input', 'input_unc')
+  for (i in 1:length(sitenames)) {
+    # Project or resample input maps
+    if (crs_in == crs_cov[[i]]) {
+      input_resampled[[i]] <- input %>%
+        terra::resample(
+          .,
+          cov[[i]][[1]]
+        )
+    } else {
+      input_resampled[[i]] <- input %>%
+        terra::project(
+          .,
+          cov[[i]][[1]]
+        )
     }
+
+    input_resampled[[i]] %<>%
+      terra::mask(
+        .,
+        cov[[i]][[1]]
+      )
+
+    mean_in[[i]] <- input_resampled[[i]] %>%
+      terra::global(
+        .,
+        na.rm = TRUE
+      ) %>%
+      unlist()
+
+    if (flatten_input) {
+      input_resampled[[i]] <- cov[[i]][[1]] * 0 + mean_in[[i]]
+      names(input_resampled[[i]]) <- c("input", "input_unc")
+    }
+
+    obs[[i]] %<>%
+      terra::extract(
+        input_resampled[[i]],
+        .,
+        bind = TRUE
+      )
   }
+
+  mean_in %<>% bind_rows()
+
+  mean_targ <- obs %>%
+    lapply(
+      .,
+      function(x) {
+        out <- x %>%
+          terra::values(.) %>%
+          dplyr::select(., .data[[targ_name]]) %>%
+          as.matrix() %>%
+          mean(., na.rm = TRUE)
+      }
+    ) %>%
+    unlist()
 
   # Option to scale and/or center observations
 
-  if(scale_obs == 'by_input')
-  {
-    observations %<>%
-      lapply(.
-             , function(x)
-             {
-               out <- x %>% terra::values(.) %>%
-                 dplyr::mutate(
-                   .,
-                   target_scaled = .data[[target]] * input / mean(.data[[target]]
-                                                                  , na.rm = TRUE)
-                 )
-               terra::values(x) <- out
-               return(x)
-             }
-      )
-    target <- 'target_scaled'
+  if (scale_obs) {
+    f1 <- function(x) {
+      out <- x %>%
+        terra::values(.) %>%
+        dplyr::mutate(
+          .,
+          targ     = .data[[targ_name]],
+          targ_sca = targ * mean_in[i, 1] / mean_targ[i]
+        )
+      terra::values(x) <- out
+      return(x)
+    }
+
+    targ <- "targ_sca"
   }
-  if(scale_obs == 'by_SD')
-  {
-    observations %<>%
-      lapply(.
-             , function(x)
-             {
-               out <- x %>% terra::values(.) %>%
-                 dplyr::mutate(
-                   .,
-                   target_scaled = .data[[target]] / sd(.data[[target]]
-                                                        , na.rm = TRUE)
-                 )
-               terra::values(x) <- out
-               return(x)
-             }
-      )
-    target <- 'target_scaled'
+
+  if (center_obs) {
+    f1 <- function(x) {
+      out <- x %>%
+        terra::values(.) %>%
+        dplyr::mutate(
+          .,
+          targ     = .data[[targ_name]],
+          targ_cen = targ - mean_targ[i]
+        )
+      terra::values(x) <- out
+      return(x)
+    }
+
+    targ <- "targ_cen"
   }
-  if(center_obs)
-  {
-    observations %<>%
-      lapply(.
-             , function(x)
-             {
-               out <- x %>% terra::values(.) %>%
-                 dplyr::mutate(
-                   .,
-                   target_centered = .data[[target]] - mean(.data[[target]]
-                                                            , na.rm = TRUE)
-                 )
-               terra::values(x) <- out
-               return(x)
-             }
-      )
-    target <- 'target_centered'
+
+  if (scale_obs & center_obs) {
+    f1 <- function(x) {
+      out <- x %>%
+        terra::values(.) %>%
+        dplyr::mutate(
+          .,
+          targ          = .data[[targ_name]],
+          targ_sca      = targ * mean_in[i, 1] / mean_targ[i],
+          targ_sca_mean = mean(targ_sca,  na.rm = TRUE),
+          targ_sca_cen  = targ_sca - targ_sca_mean
+        )
+      terra::values(x) <- out
+      return(x)
+    }
+
+    targ <- "targ_sca_cen"
+  }
+
+  if (scale_obs | center_obs) {
+    for (i in 1:length(sitenames)) {
+      obs[[i]] %<>% f1()
+    }
   }
 
   # Option to center and/or scale covariates
   # Should there be an option to keep both standard and scaled covariates?
 
-  if(scale_covariates == 'by_SD')
-  {
-    covariates %<>% lapply(function(x)
-    {
-      out <- x %>% terra::scale(
-        .
-        , center = FALSE
-      )
-      return(out)
-    }
+  if (scale_cov == "by_SD") {
+    cov %<>% lapply(
+      .,
+      function(x) {
+        out <- terra::scale(
+          x,
+          center = FALSE
+        )
+        return(out)
+      }
     )
   }
-  if(scale_covariates == 'by_input')
-  {
-    for(i in 1:length(covariates))
+
+  if (scale_cov == "by_input") {
+    for (i in 1:length(sitenames))
     {
-      means_i <- global(covariates[[i]], "mean", na.rm = TRUE) %>% unlist
-      covariates[[i]] %<>% '*' (input_resampled[[i]][[1]])
-      covariates[[i]] %<>% '/' (means_i)
+      means_i <- global(cov[[i]], "mean", na.rm = TRUE) %>% unlist()
+      cov[[i]] %<>% "*"(input_resampled[[i]][[1]])
+      cov[[i]] %<>% "/"(means_i)
     }
   }
-  if(center_covariates)
-  {
-    covariates %<>% lapply(function(x)
-    {
-      out <- x %>% terra::scale(
-        .
-        , scale = FALSE
+
+  if (center_cov) {
+    cov %<>% lapply(function(x) {
+      out <- terra::scale(
+        x,
+        scale = FALSE
       )
       return(out)
-    }
-    )
+    })
   }
 
   # Extract covariates
 
-  for(i in 1:length(observations))
+  for (i in 1:length(sitenames))
   {
-    observations[[i]] %<>%
-      terra::extract(covariates[[i]], .) %>%
-      dplyr::select(., -1) %>%
-      base::cbind(observations[[i]], .)
+    obs[[i]] %<>%
+      terra::extract(
+        cov[[i]],
+        .,
+        bind = TRUE
+      )
   }
 
   # Select data for model
 
-  covnames <- names(covariates[[1]])
-  if(!is.null(input_unc)) covnames %<>% c('input_unc', .)
-  if(!is.null(input)) covnames %<>% c('input', .)
-
-  for(i in 1:length(sitenames))
-  {
-    observations[[i]]$site <- sitenames[i]
+  covnames <- names(cov[[1]])
+  if(input_as_cov) {
+    if (!is.null(input_unc)) covnames %<>% c("input_unc", .)
+    if (!is.null(input)) covnames %<>% c("input", .)
   }
 
-  thesecolumns <- c(target, covnames, 'site')
+  for (i in 1:length(sitenames))
+  {
+    obs[[i]]$site <- sitenames[i]
+  }
 
-  trdat <- vect(observations) %>%
+  thesecolumns <- c(targ, covnames, "site")
+
+  trdat <- vect(obs) %>%
     terra::values(.) %>%
     dplyr::select(., all_of(thesecolumns)) %>%
     na.omit()
 
   # Create folds for cross validation
 
-  folds <- lapply(unique(trdat$site), function(x)
-  {
-    out <- c(1:nrow(trdat))[trdat$site != x]
-    return(out)
-  }
-  )
+  folds <- sitenames %>%
+    lapply(
+      function(x) {
+        out <- c(1:nrow(trdat))[trdat$site != x]
+        return(out)
+        }
+      )
 
   # Create formula
 
-  fm <- covnames %>% base::paste(., collapse = ' + ') %>%
-    paste0(target, ' ~ ', .) %>%
+  fm <- covnames %>%
+    base::paste(., collapse = " + ") %>%
+    paste0(targ, " ~ ", .) %>%
     stats::as.formula(.)
 
   # Traincontrol object
 
-  trc <- trainControl(
-    index = folds
-    , savePredictions = 'final'
+  trc <- caret::trainControl(
+    index = folds,
+    savePredictions = "final"
   )
 
   # Train the model
 
   model <- caret::train(
-    fm
-    , trdat
-    , method = model_type
-    , trControl = trc
-    # , importance = 'impurity'
+    fm,
+    trdat,
+    method = model_type,
+    trControl = trc
+    # , importance = "impurity"
   )
 
   # If making maps, train an independent model for each site
 
-  if(make_maps)
-  {
+  if (make_maps) {
     map_models <- list()
 
-    for(i in 1:length(covariates))
+    for (i in 1:length(sitenames))
     {
       # Select data
 
@@ -257,126 +314,129 @@ make_downscaler <- function(
 
       # Create folds for cross validation
 
-      folds_i <- lapply(unique(trdat_i$site), function(x)
-      {
-        out <- c(1:nrow(trdat_i))[trdat_i$site != x]
-        return(out)
-      }
-      )
+      folds_i <- sitenames[-i] %>%
+        lapply(
+          function(x) {
+            out <- c(1:nrow(trdat_i))[trdat_i$site != x]
+            return(out)
+            }
+          )
 
       # Train control object
 
-      trc_i <- trainControl(
+      trc_i <- caret::trainControl(
         index = folds_i
       )
 
       # Train the model
 
       map_models[[i]] <- caret::train(
-        fm
-        , trdat_i
-        , method = model_type
-        , trControl = trc_i
-        # , importance = 'impurity'
+        fm,
+        trdat_i,
+        method = model_type,
+        trControl = trc_i
+        # , importance = "impurity"
       )
     }
   }
 
   # Make prediction maps for each site
 
-  if(make_maps)
-  {
-    # Merge layers for prediction
-    # Only if users want to use the input as a covariate, so I should make this optional
-
-    if(exists('input_resampled'))
-    {
-      for(i in 1:length(covariates))
+  if (make_maps) {
+    if (input_as_cov) {
+      for (i in 1:length(sitenames))
       {
-        covariates[[i]] %<>% c(input_resampled[[i]], .)
+        cov[[i]] %<>% c(input_resampled[[i]], .)
       }
     }
 
     output <- list()
 
-    for(i in 1:length(covariates))
+    for (i in 1:length(sitenames))
     {
-      output[[i]] <- predict(
-        covariates[[i]]
-        , map_models[[i]]
-        , na.rm = TRUE
+      output[[i]] <- terra::predict(
+        cov[[i]],
+        map_models[[i]],
+        na.rm = TRUE
       )
-      if(center_obs)
-      {
-        output[[i]] %<>% '+' (input_resampled[[i]][[1]])
+      if (center_obs) {
+        baseline <- unlist(mean_in[i, 1])
+        output[[i]] %<>% "+"(baseline)
       }
-      # also modify output maps in case of scaling and transformations
-      names(output[[i]]) <- 'output'
+      # also modify output maps in case of log transformations
+      names(output[[i]]) <- "output"
     }
 
     # Extract predictions to the observations for the final accuracy assessment
 
-    for(i in 1:length(observations))
+    # print(str(output))
+    # print(str(obs[[1]]))
+
+    for (i in 1:length(sitenames))
     {
-      observations[[i]] %<>%
-        terra::extract(output[[i]], .) %>%
-        dplyr::select(., -1) %>%
-        base::cbind(observations[[i]], .)
+      obs[[i]] %<>%
+        terra::extract(
+          output[[i]],
+          .,
+          bind = TRUE
+        )
     }
   }
 
   # Accuracy for input and output maps
   # Include a step to get the final predictions when make_maps is FALSE
 
-  rmse_na <- function(x, y)
-  {
+  rmse_na <- function(x, y) {
     out <- base::sqrt(
-      base::mean((x - y)^2
-                 , na.rm = TRUE)
+      base::mean(
+        (x - y)^2,
+        na.rm = TRUE
+      )
     )
     return(out)
   }
-
   results <- list()
-  results$accuracy <- observations %>%
+  results$accuracy <- obs %>%
     terra::vect(.) %>%
     terra::values(.) %>%
     dplyr::group_by(., site) %>%
-    dplyr::summarise(.
-                     , RMSE_in  = rmse_na(.data[[target_name]], input)
-                     , RMSE_out = rmse_na(.data[[target_name]], output)
-                     , cor_in  = cor(.data[[target_name]]
-                                     , input
-                                     , use = "pairwise.complete.obs")
-                     , cor_out = cor(.data[[target_name]]
-                                     , output
-                                     , use = "pairwise.complete.obs")
+    dplyr::summarise(.,
+      RMSE_in  = rmse_na(.data[[targ_name]], input),
+      RMSE_out = rmse_na(.data[[targ_name]], output),
+      cor_in = cor(
+        .data[[targ_name]],
+        input,
+        use = "pairwise.complete.obs"
+      ),
+      cor_out = cor(
+        .data[[targ_name]],
+        output,
+        use = "pairwise.complete.obs"
+      )
     )
-  if(save_covariates) {results$covariates <- covariates}
-  results$observations <- observations
+  if (save_cov) {
+    results$cov <- cov
+  }
+  results$obs <- obs
   results$model <- model
-  if(make_maps)
-  {
-    if(save_map_models) {results$map_models <- map_models}
+  if (make_maps) {
+    if (save_models) {
+      results$map_models <- map_models
+    }
     results$output_maps <- output
   }
-  if(results_plot)
-  {
-    require(ggplot2)
-
-    results$plot <- observations %>%
-      vect %>%
-      values %>%
+  if (results_plot) {
+    results$plot <- obs %>%
+      vect() %>%
+      values() %>%
       tibble() %>%
-      ggplot(., aes(x = .data[[target_name]], y = output, col = site)) +
+      ggplot(., aes(x = .data[[targ_name]],
+                    y = output, col = site)) +
       geom_point() +
       geom_abline() +
       coord_equal()
   }
-
   return(results)
 }
-
-
 
 # END

@@ -1,7 +1,5 @@
 # Test for basic workflow
 
-
-
 library(terra)
 library(magrittr)
 library(dplyr)
@@ -33,12 +31,12 @@ for(i in 1:length(sites))
     signif(digits = 4)
 }
 
-getwd() %>% paste0(., '/R/make_downscaler.R') %>% source()
+getwd() %>% paste0(., "/R/make_downscaler.R") %>% source()
 
 downscaler1 <- make_downscaler(
   observations = obs
-  , target     = 'clay'
-  , model_type = 'ranger'
+  , target     = "clay"
+  , model_type = "ranger"
   , input      = my_input
   , input_unc  = my_input_unc
   , make_maps  = TRUE
@@ -46,9 +44,9 @@ downscaler1 <- make_downscaler(
   , flatten_input      = TRUE
   , input_as_covariate = TRUE
   , covariates         = my_covariates
-  , scale_covariates   = 'by_input'
+  , scale_covariates   = "by_input"
   , center_covariates  = TRUE
-  , scale_obs    = 'no'
+  , scale_obs    = "no"
   , center_obs   = TRUE
   , results_plot = TRUE
 )
@@ -168,9 +166,9 @@ downscaler1$model
 #
 # add(r) <- (acos(r[[1]]) + asin(r[[2]])) * (-1)
 #
-# names(r)[4] <- 'new'
+# names(r)[4] <- "new"
 #
-# r[[3]] %<>% '*'(-1)
+# r[[3]] %<>% "*"(-1)
 #
 # r %<>% stretch(0, 255)
 #
@@ -180,6 +178,6 @@ downscaler1$model
 #
 # plot(r)
 #
-# plotRGB(r, stretch = 'lin')
+# plotRGB(r, stretch = "lin")
 
 # END
