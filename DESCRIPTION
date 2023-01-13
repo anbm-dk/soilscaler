@@ -7,15 +7,19 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.0
 Imports: 
+    caret,
     dplyr,
+    ggplot2,
     magrittr,
+    Rdpack,
+    rlist,
     terra
 URL: https://github.com/anbm-dk/soilscaler
 BugReports: https://github.com/anbm-dk/soilscaler/issues
-Authors@R: 
-    person("Anders Bjørn", "Møller", , "anbm@agro.au.dk",
-           comment = c(ORCID = "0000-0002-2737-5780"))
 Depends: 
     R (>= 2.10)
 LazyData: true
 RdMacros: Rdpack
+Authors@R: 
+    person("Anders Bjørn", "Møller", , "anbm@agro.au.dk",
+           comment = c(ORCID = "0000-0002-2737-5780"))

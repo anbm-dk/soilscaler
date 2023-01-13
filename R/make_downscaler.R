@@ -28,7 +28,7 @@
 make_downscaler <- function(
     obs           = NULL,
     targ_name     = NULL,
-    cov          = NULL,
+    cov           = NULL,
     input         = NULL,
     input_unc     = NULL,
     model_type    = "lm",
@@ -43,12 +43,14 @@ make_downscaler <- function(
     results_plot  = FALSE,
     save_cov      = FALSE,
     save_models   = FALSE
-    ) {
-  # To do: add bootstrapping sequence for uncertainty assessment
-  # Include random alterations to basemap in this procedure, based on uncertainty
+) {
+  # To do:
   # Include option to use input map as a covariate or not [OK]
+  # The use of input maps should be optional
+  # Add bootstrapping sequence for uncertainty assessment
+  # Include random alterations to basemap in this procedure, based on uncertainty
   # Include log transformation
-  # Inclusion of input maps should be optional
+  # Use do.call to train the model
 
   # Add checks for consistency
 
@@ -61,74 +63,96 @@ make_downscaler <- function(
   targ <- targ_name
   sitenames <- names(obs)
 
-  # Extract input
-
-  if (!is.null(input_unc)) {
-    input <- c(input, input_unc)
-    names(input) <- c("input", "input_unc")
-  }
-
-  listproj <- function(x) {
-    out <- lapply(x, function(x2) {
-      out2 <- terra::crs(x2, proj = TRUE)
-      return(out2)
+  if (is.null(input)) {
+    input_unc <- NULL
+    input_as_cov <- FALSE
+    scale_obs <- FALSE
+    if (scale_cov == "by_input") {
+      scale_cov <- "no"
+      message(
+        strwrap(
+          prefix = "\n",
+          initial = "",
+          "No input map provided. Covariate scaling skipped. You can use scale_cov = 'by_SD' to scale covariates by their standard deviations instead."
+          )
+        )
     }
-    )
-    return(out)
   }
 
-  crs_in  <- terra::crs(input, proj = TRUE)
-  crs_cov <- cov %>% listproj
-  crs_obs <- obs %>% listproj
-  input_resampled <- list()
-  mean_in <- list()
+  if (!is.null(input)) {
+    # Extract input
+    if (!is.null(input_unc)) {
+      input <- c(input, input_unc)
+      names(input) <- c("input", "input_unc")
+    }
 
-  # Extract input values
+    listproj <- function(x) {
+      out <- lapply(
+        x,
+        function(x2) {
+          out2 <- terra::crs(
+            x2,
+            proj = TRUE
+          )
+          return(out2)
+        }
+      )
+      return(out)
+    }
 
-  for (i in 1:length(sitenames)) {
-    # Project or resample input maps
-    if (crs_in == crs_cov[[i]]) {
-      input_resampled[[i]] <- input %>%
-        terra::resample(
+    crs_in  <- terra::crs(input, proj = TRUE)
+    crs_cov <- cov %>% listproj
+    crs_obs <- obs %>% listproj
+    input_resampled <- list()
+    mean_in <- list()
+
+    # Extract input values
+    for (i in 1:length(sitenames)) {
+      # Project or resample input maps
+      if (crs_in == crs_cov[[i]]) {
+        input_resampled[[i]] <- input %>%
+          terra::resample(
+            .,
+            cov[[i]][[1]]
+          )
+      } else {
+        input_resampled[[i]] <- input %>%
+          terra::project(
+            .,
+            cov[[i]][[1]]
+          )
+      }
+
+      input_resampled[[i]] %<>%
+        terra::mask(
           .,
           cov[[i]][[1]]
         )
-    } else {
-      input_resampled[[i]] <- input %>%
-        terra::project(
+
+      mean_in[[i]] <- input_resampled[[i]] %>%
+        terra::global(
           .,
-          cov[[i]][[1]]
+          na.rm = TRUE
+        ) %>%
+        unlist()
+
+      if (flatten_input) {
+        input_resampled[[i]] <- cov[[i]][[1]] * 0 + mean_in[[i]]
+        names(input_resampled[[i]]) <- c("input", "input_unc")[1:nlyr(input)]
+      }
+
+      obs[[i]] %<>%
+        terra::extract(
+          input_resampled[[i]],
+          .,
+          bind = TRUE
         )
     }
 
-    input_resampled[[i]] %<>%
-      terra::mask(
-        .,
-        cov[[i]][[1]]
-      )
-
-    mean_in[[i]] <- input_resampled[[i]] %>%
-      terra::global(
-        .,
-        na.rm = TRUE
-      ) %>%
-      unlist()
-
-    if (flatten_input) {
-      input_resampled[[i]] <- cov[[i]][[1]] * 0 + mean_in[[i]]
-      names(input_resampled[[i]]) <- c("input", "input_unc")
-    }
-
-    obs[[i]] %<>%
-      terra::extract(
-        input_resampled[[i]],
-        .,
-        bind = TRUE
-      )
+    mean_in %<>% bind_rows()
   }
 
-  mean_in %<>% bind_rows()
-
+  # Calculate the mean value of the target variable
   mean_targ <- obs %>%
     lapply(
       .,
@@ -143,7 +167,6 @@ make_downscaler <- function(
     unlist()
 
   # Option to scale and/or center observations
-
   if (scale_obs) {
     f1 <- function(x) {
       out <- x %>%
@@ -284,7 +307,7 @@ make_downscaler <- function(
     paste0(targ, " ~ ", .) %>%
     stats::as.formula(.)
 
-  # Traincontrol object
+  # TrainControl object
 
   trc <- caret::trainControl(
     index = folds,
@@ -395,25 +418,91 @@ make_downscaler <- function(
     )
     return(out)
   }
-  results <- list()
-  results$accuracy <- obs %>%
-    terra::vect(.) %>%
-    terra::values(.) %>%
-    dplyr::group_by(., site) %>%
-    dplyr::summarise(.,
-      RMSE_in  = rmse_na(.data[[targ_name]], input),
-      RMSE_out = rmse_na(.data[[targ_name]], output),
-      cor_in = cor(
+
+  # Function to specify namespace in do.call
+  getfun <- function(x) {
+    if(length(grep("::", x)) > 0) {
+      parts <- strsplit(x, "::")[[1]]
+      getExportedValue(parts[1], parts[2])
+    } else {
+      x
+    }
+  }
+
+  # List with arguments for summarise
+  args_acc <- list(
+    quote(.),
+    RMSE_out = quote(
+      rmse_na(
         .data[[targ_name]],
-        input,
-        use = "pairwise.complete.obs"
-      ),
-      cor_out = cor(
+        output
+      )
+    ),
+    cor_out = quote(
+      cor(
         .data[[targ_name]],
         output,
         use = "pairwise.complete.obs"
       )
     )
+  )
+  if (!is.null(input))
+  {
+    args_acc %<>%
+      rlist::list.insert(
+        ., 1,
+        RMSE_in = quote(
+          rmse_na(
+            .data[[targ_name]],
+            input
+          )
+        )
+      ) %>%
+      rlist::list.insert(
+        ., 3,
+        cor_in = quote(
+          cor(
+            .data[[targ_name]],
+            input,
+            use = "pairwise.complete.obs"
+          )
+        )
+      )
+  }
+  # mysummary <- function(mydata, myargs) {
+  #   mydatalist <- list(mydata)
+  #   allargs <- c(mydatalist, myargs)
+  #   out <- do.call(
+  #     what = getfun("dplyr::summarise"),
+  #     args = allargs
+  #   )
+  #   return(out)
+  # }
+  results <- list()
+  results$accuracy <- obs %>%
+    terra::vect(.) %>%
+    terra::values(.) %>%
+    dplyr::group_by(., site) %>%
+    mysummary(., args_acc)
+    # list(.) %>%
+    # c(., args_acc) %>%
+    # do.call(
+    #   what = getfun("dplyr::summarise")
+    # )
+    # dplyr::summarise(.,
+    #   RMSE_in  = rmse_na(.data[[targ_name]], input),
+    #   RMSE_out = rmse_na(.data[[targ_name]], output),
+    #   cor_in = cor(
+    #     .data[[targ_name]],
+    #     input,
+    #     use = "pairwise.complete.obs"
+    #   ),
+    #   cor_out = cor(
+    #     .data[[targ_name]],
+    #     output,
+    #     use = "pairwise.complete.obs"
+    #   )
+    # )
   if (save_cov) {
     results$cov <- cov
   }

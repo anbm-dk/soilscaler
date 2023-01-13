@@ -57,7 +57,7 @@ getwd() %>% paste0(., "/R/make_downscaler.R") %>% source()
 downscaler1 <- make_downscaler(
   obs           = obs,
   targ_name     = "clay",
-  model_type    = "cubist",
+  model_type    = "lm",
   input         = my_input,
   input_unc     = my_input_unc,
   make_maps     = TRUE,
@@ -72,6 +72,7 @@ downscaler1 <- make_downscaler(
   results_plot  = TRUE,
 )
 
+downscaler1$accuracy
 
 downscaler1
 
