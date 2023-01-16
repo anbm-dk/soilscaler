@@ -26,16 +26,18 @@ x$set_dep("Rdpack") # For references
 x$set_dep("caret")
 x$set_dep("ggplot2")
 x$set_dep("rlist")
+x$set_dep("rlang")
 
 # Set authors
 
 x$del("Authors@R")
 
 x$add_author(
-  "Anders Bjørn",
-  "Møller",
+  given = "Anders Bjørn",
+  family = "Møller",
   email = "anbm@agro.au.dk",
-  orcid = "0000-0002-2737-5780"
+  orcid = "0000-0002-2737-5780",
+  role = c("aut", "cre"),
 )
 
 x$get_authors()

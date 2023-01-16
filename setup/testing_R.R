@@ -1,8 +1,12 @@
 # Extra tests
 
+# install.packages("devtools")
 library(devtools)
 
-load_all()
+# load_all()
+
+install_github("anbm-dk/soilscaler")
+library(soilscaler)
 
 
 # Required packages
@@ -61,7 +65,7 @@ downscaler1 <- make_downscaler(
   model_type    = "lm",
   input         = my_input,
   # input_unc     = my_input_unc,
-  make_maps     = FALSE,
+  make_maps     = TRUE,
   unc_factor    = 1,
   flatten_input = TRUE,
   input_as_cov  = TRUE,
