@@ -11,6 +11,7 @@ library(terra)
 library(magrittr)
 library(dplyr)
 library(caret)
+library(rlang)  # For quosures
 
 
 # Optional
@@ -57,27 +58,29 @@ getwd() %>% paste0(., "/R/make_downscaler.R") %>% source()
 downscaler1 <- make_downscaler(
   obs           = obs,
   targ_name     = "clay",
-  model_type    = "cubist",
+  model_type    = "lm",
   input         = my_input,
-  input_unc     = my_input_unc,
-  make_maps     = TRUE,
+  # input_unc     = my_input_unc,
+  make_maps     = FALSE,
   unc_factor    = 1,
   flatten_input = TRUE,
   input_as_cov  = TRUE,
   cov           = my_covariates, # change this name
   scale_cov     = "by_input",
   center_cov    = TRUE,
-  scale_obs     = FALSE,
+  scale_obs     = TRUE,
   center_obs    = TRUE,
   results_plot  = TRUE,
+  keep_models   = TRUE
 )
 
+downscaler1$accuracy
 
 downscaler1
 
 downscaler1$output_maps[[5]] %>% plot
 
-downscaler1$model
+downscaler1$model_overall
 
 
 # END
