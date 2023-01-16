@@ -15,8 +15,8 @@
 #' @param center_cov Should the function center the covariates?
 #' @param center_obs Should the function center the observations? Back-transformation is automatic for predictions.
 #' @param results_plot Should the output contain a plot with the results?
-#' @param save_cov Append the covariates to the output object?
-#' @param save_models Keep the models for mapping as part of the output object?
+#' @param keep_cov Append the covariates to the output object?
+#' @param keep_models Keep the models for mapping as part of the output object?
 #' @returns A downscaler model
 #' @examples
 #' add(1, 1)
@@ -41,16 +41,17 @@ make_downscaler <- function(
     center_cov    = TRUE,
     center_obs    = TRUE,
     results_plot  = FALSE,
-    save_cov      = FALSE,
-    save_models   = FALSE
+    keep_cov      = FALSE,
+    keep_models   = FALSE
 ) {
   # To do:
   # Include option to use input map as a covariate or not [OK]
-  # The use of input maps should be optional
+  # The use of input maps should be optional [OK]
+  # Include a step to get the final predictions when make_maps is FALSE [OK]
+  # Include log transformation
+  # Use do.call to train the models
   # Add bootstrapping sequence for uncertainty assessment
   # Include random alterations to basemap in this procedure, based on uncertainty
-  # Include log transformation
-  # Use do.call to train the model
 
   # Add checks for consistency
 
@@ -60,13 +61,14 @@ make_downscaler <- function(
   # check for sitenames
   # Check for number of sites
 
-  targ <- targ_name
+  targ_col <- targ_name
   sitenames <- names(obs)
 
   if (is.null(input)) {
-    input_unc <- NULL
+    input_unc    <- NULL
     input_as_cov <- FALSE
-    scale_obs <- FALSE
+    scale_obs    <- FALSE
+    center_obs   <- FALSE
     if (scale_cov == "by_input") {
       scale_cov <- "no"
       message(
@@ -152,74 +154,66 @@ make_downscaler <- function(
     mean_in %<>% bind_rows()
   }
 
-  # Calculate the mean value of the target variable
-  mean_targ <- obs %>%
-    lapply(
-      .,
-      function(x) {
-        out <- x %>%
-          terra::values(.) %>%
-          dplyr::select(., .data[[targ_name]]) %>%
-          as.matrix() %>%
-          mean(., na.rm = TRUE)
-      }
-    ) %>%
-    unlist()
-
   # Option to scale and/or center observations
-  if (scale_obs) {
-    f1 <- function(x) {
-      out <- x %>%
-        terra::values(.) %>%
-        dplyr::mutate(
-          .,
-          targ     = .data[[targ_name]],
-          targ_sca = targ * mean_in[i, 1] / mean_targ[i]
-        )
-      terra::values(x) <- out
-      return(x)
-    }
-
-    targ <- "targ_sca"
-  }
-
-  if (center_obs) {
-    f1 <- function(x) {
-      out <- x %>%
-        terra::values(.) %>%
-        dplyr::mutate(
-          .,
-          targ     = .data[[targ_name]],
-          targ_cen = targ - mean_targ[i]
-        )
-      terra::values(x) <- out
-      return(x)
-    }
-
-    targ <- "targ_cen"
-  }
-
-  if (scale_obs & center_obs) {
-    f1 <- function(x) {
-      out <- x %>%
-        terra::values(.) %>%
-        dplyr::mutate(
-          .,
-          targ          = .data[[targ_name]],
-          targ_sca      = targ * mean_in[i, 1] / mean_targ[i],
-          targ_sca_mean = mean(targ_sca,  na.rm = TRUE),
-          targ_sca_cen  = targ_sca - targ_sca_mean
-        )
-      terra::values(x) <- out
-      return(x)
-    }
-
-    targ <- "targ_sca_cen"
-  }
-
   if (scale_obs | center_obs) {
+    args_sca_cen <- list(
+      targ = rlang::quo(
+        .data[[targ_name]]
+      ),
+      mean_targ = rlang::quo(
+        mean(targ,  na.rm = TRUE)
+      )
+    )
+
+    if (scale_obs) {
+      args_sca_cen %<>%
+        rlist::list.append(
+          .,
+          mean_input = rlang::quo(
+            mean(input,  na.rm = TRUE)
+          ),
+          targ_sca = rlang::quo(
+            targ * mean_input / mean_targ
+          )
+        )
+
+      targ_col <- "targ_sca"
+    }
+
+    if (center_obs & !scale_obs) {
+      args_sca_cen %<>%
+        rlist::list.append(
+          .,
+          targ_cen = rlang::quo(
+            targ - mean_targ
+          )
+        )
+
+      targ_col <- "targ_cen"
+    }
+
+    if (scale_obs & center_obs) {
+      args_sca_cen %<>%
+        rlist::list.append(
+          .,
+          targ_sca_mean = rlang::quo(
+            mean(targ_sca,  na.rm = TRUE)
+          ),
+          targ_sca_cen = rlang::quo(
+            targ_sca - targ_sca_mean
+          )
+        )
+
+      targ_col <- "targ_sca_cen"
+    }
+
     for (i in 1:length(sitenames)) {
-      obs[[i]] %<>% f1()
+      args_sca_cen <- rlang::new_quosures(args_sca_cen)
+
+      newvalues <- terra::values(obs[[i]]) %>%
+            dplyr::mutate(., !!! args_sca_cen)
+
+      terra::values(obs[[i]]) <- newvalues
     }
   }
 
@@ -240,8 +234,7 @@ make_downscaler <- function(
   }
 
   if (scale_cov == "by_input") {
-    for (i in 1:length(sitenames))
-    {
+    for (i in 1:length(sitenames)) {
       means_i <- global(cov[[i]], "mean", na.rm = TRUE) %>% unlist()
       cov[[i]] %<>% "*"(input_resampled[[i]][[1]])
       cov[[i]] %<>% "/"(means_i)
@@ -260,8 +253,7 @@ make_downscaler <- function(
 
   # Extract covariates
 
-  for (i in 1:length(sitenames))
-  {
+  for (i in 1:length(sitenames)) {
     obs[[i]] %<>%
       terra::extract(
         cov[[i]],
@@ -278,12 +270,11 @@ make_downscaler <- function(
     if (!is.null(input)) covnames %<>% c("input", .)
   }
 
-  for (i in 1:length(sitenames))
-  {
+  for (i in 1:length(sitenames)) {
     obs[[i]]$site <- sitenames[i]
   }
 
-  thesecolumns <- c(targ, covnames, "site")
+  thesecolumns <- c(targ_col, covnames, "site")
 
   trdat <- vect(obs) %>%
     terra::values(.) %>%
@@ -304,7 +295,7 @@ make_downscaler <- function(
 
   fm <- covnames %>%
     base::paste(., collapse = " + ") %>%
-    paste0(targ, " ~ ", .) %>%
+    paste0(targ_col, " ~ ", .) %>%
     stats::as.formula(.)
 
   # TrainControl object
@@ -316,7 +307,7 @@ make_downscaler <- function(
 
   # Train the model
 
-  model <- caret::train(
+  model_general <- caret::train(
     fm,
     trdat,
     method = model_type,
@@ -324,62 +315,57 @@ make_downscaler <- function(
     # , importance = "impurity"
   )
 
-  # If making maps, train an independent model for each site
+  # Train an independent prediction model for each site
 
-  if (make_maps) {
-    map_models <- list()
+  models_leave_site_out <- list()
 
-    for (i in 1:length(sitenames))
-    {
-      # Select data
+  for (i in 1:length(sitenames)) {
+    # Select data
 
-      trdat_i <- trdat[folds[[i]], ]
+    trdat_i <- trdat[folds[[i]], ]
 
-      # Create folds for cross validation
+    # Create folds for cross validation
 
-      folds_i <- sitenames[-i] %>%
-        lapply(
-          function(x) {
-            out <- c(1:nrow(trdat_i))[trdat_i$site != x]
-            return(out)
-            }
-          )
-
-      # Train control object
-
-      trc_i <- caret::trainControl(
-        index = folds_i
+    folds_i <- sitenames[-i] %>%
+      lapply(
+        function(x) {
+          out <- c(1:nrow(trdat_i))[trdat_i$site != x]
+          return(out)
+        }
       )
 
-      # Train the model
+    # Train control object
 
-      map_models[[i]] <- caret::train(
-        fm,
-        trdat_i,
-        method = model_type,
-        trControl = trc_i
-        # , importance = "impurity"
-      )
-    }
+    trc_i <- caret::trainControl(
+      index = folds_i
+    )
+
+    # Train the model
+
+    models_leave_site_out[[i]] <- caret::train(
+      fm,
+      trdat_i,
+      method = model_type,
+      trControl = trc_i
+      # , importance = "impurity"
+    )
   }
 
-  # Make prediction maps for each site
-
+  # Make predictions
   if (make_maps) {
+    # Make prediction maps for each site
     if (input_as_cov) {
-      for (i in 1:length(sitenames))
-      {
+      for (i in 1:length(sitenames)) {
         cov[[i]] %<>% c(input_resampled[[i]], .)
       }
     }
 
     output <- list()
 
-    for (i in 1:length(sitenames))
-    {
+    for (i in 1:length(sitenames)) {
       output[[i]] <- terra::predict(
         cov[[i]],
-        map_models[[i]],
+        models_leave_site_out[[i]],
         na.rm = TRUE
       )
       if (center_obs) {
@@ -391,12 +377,7 @@ make_downscaler <- function(
     }
 
     # Extract predictions to the observations for the final accuracy assessment
-
-    # print(str(output))
-    # print(str(obs[[1]]))
-
-    for (i in 1:length(sitenames))
-    {
+    for (i in 1:length(sitenames)) {
       obs[[i]] %<>%
         terra::extract(
           output[[i]],
@@ -404,10 +385,36 @@ make_downscaler <- function(
           bind = TRUE
         )
     }
+  } else {
+    # Make predictions for observation points
+    for (i in 1:length(sitenames)) {
+      outcov_i <- obs[[i]] %>%
+        terra::values(.) %>%
+        dplyr::select(., all_of(covnames))
+
+      output_i <- obs[[i]] %>%
+        terra::values() %>%
+        nrow() %>%
+        numeric()
+
+      notna <- rowSums(is.na(outcov_i)) == 0
+
+      output_i[notna] <- predict(
+        models_leave_site_out[[i]],
+        outcov_i
+      )
+
+      if (center_obs) {
+        baseline <- unlist(mean_in[i, 1])
+        output_i %<>% "+"(baseline)
+      }
+      # also modify output in case of log transformations
+
+      obs[[i]]$output <- output_i
+    }
   }
 
   # Accuracy for input and output maps
-  # Include a step to get the final predictions when make_maps is FALSE
 
   rmse_na <- function(x, y) {
     out <- base::sqrt(
@@ -419,26 +426,15 @@ make_downscaler <- function(
     return(out)
   }
 
-  # Function to specify namespace in do.call
-  getfun <- function(x) {
-    if(length(grep("::", x)) > 0) {
-      parts <- strsplit(x, "::")[[1]]
-      getExportedValue(parts[1], parts[2])
-    } else {
-      x
-    }
-  }
-
-  # List with arguments for summarise
+  # List of quosures with arguments for summarise
   args_acc <- list(
-    quote(.),
-    RMSE_out = quote(
+    RMSE_out = rlang::quo(
       rmse_na(
         .data[[targ_name]],
         output
       )
     ),
-    cor_out = quote(
+    cor_out = rlang::quo(
       cor(
         .data[[targ_name]],
         output,
@@ -446,85 +442,77 @@ make_downscaler <- function(
       )
     )
   )
+
+  # Add arguments for input accuracy if applicable
   if (!is.null(input))
   {
     args_acc %<>%
-      rlist::list.insert(
-        ., 1,
-        RMSE_in = quote(
+      rlist::list.append(
+        .,
+        RMSE_in = rlang::quo(
           rmse_na(
             .data[[targ_name]],
             input
           )
-        )
-      ) %>%
-      rlist::list.insert(
-        ., 3,
-        cor_in = quote(
+        ),
+        cor_in = rlang::quo(
           cor(
             .data[[targ_name]],
             input,
             use = "pairwise.complete.obs"
           )
         )
+      ) %>%
+      rlist::list.subset(
+        .,
+        c("RMSE_in", "RMSE_out", "cor_in", "cor_out")
       )
   }
-  # mysummary <- function(mydata, myargs) {
-  #   mydatalist <- list(mydata)
-  #   allargs <- c(mydatalist, myargs)
-  #   out <- do.call(
-  #     what = getfun("dplyr::summarise"),
-  #     args = allargs
-  #   )
-  #   return(out)
-  # }
+
+  # Convert list of quosures to a ´quosures´ class object
+  args_acc <- rlang::new_quosures(args_acc)
+
   results <- list()
+
   results$accuracy <- obs %>%
     terra::vect(.) %>%
     terra::values(.) %>%
     dplyr::group_by(., site) %>%
-    mysummary(., args_acc)
-    # list(.) %>%
-    # c(., args_acc) %>%
-    # do.call(
-    #   what = getfun("dplyr::summarise")
-    # )
-    # dplyr::summarise(.,
-    #   RMSE_in  = rmse_na(.data[[targ_name]], input),
-    #   RMSE_out = rmse_na(.data[[targ_name]], output),
-    #   cor_in = cor(
-    #     .data[[targ_name]],
-    #     input,
-    #     use = "pairwise.complete.obs"
-    #   ),
-    #   cor_out = cor(
-    #     .data[[targ_name]],
-    #     output,
-    #     use = "pairwise.complete.obs"
-    #   )
-    # )
-  if (save_cov) {
+    dplyr::summarise(., !!! args_acc)
+
+  if (keep_cov) {
     results$cov <- cov
   }
+
   results$obs <- obs
-  results$model <- model
+
+  if (keep_models) {
+    results$model_general <- model_general
+    results$models_leave_site_out <- models_leave_site_out
+  }
+
   if (make_maps) {
-    if (save_models) {
-      results$map_models <- map_models
-    }
     results$output_maps <- output
   }
+
   if (results_plot) {
     results$plot <- obs %>%
       vect() %>%
       values() %>%
       tibble() %>%
-      ggplot(., aes(x = .data[[targ_name]],
-                    y = output, col = site)) +
+      ggplot(
+        .,
+        aes(
+          x = .data[[targ_name]],
+          y = output,
+          col = site
+        )
+      ) +
       geom_point() +
       geom_abline() +
       coord_equal()
   }
+
   return(results)
 }
 
