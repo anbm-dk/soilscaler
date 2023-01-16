@@ -12,6 +12,7 @@ Imports:
     ggplot2,
     magrittr,
     Rdpack,
+    rlang,
     rlist,
     terra
 URL: https://github.com/anbm-dk/soilscaler
@@ -21,5 +22,5 @@ Depends:
 LazyData: true
 RdMacros: Rdpack
 Authors@R: 
-    person("Anders Bjørn", "Møller", , "anbm@agro.au.dk",
+    person("Anders Bjørn", "Møller", , "anbm@agro.au.dk", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-2737-5780"))
