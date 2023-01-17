@@ -10,7 +10,7 @@ root <- getwd()
 
 ## 1: Load data-raw
 
-# Load EC rasters
+# 1.1: Load EC rasters
 
 EC_list <- root %>%
   paste0(., "/data-raw/EC_raster/") %>%
@@ -20,38 +20,38 @@ EC_list <- root %>%
   )
 
 
-# Load covariates
+# 1.2: Load covariates (not used due to size)
 
 sites <- root %>%
   paste0(., "/data-raw/covariates/") %>%
   list.dirs(full.names = FALSE) %>%
   extract(nchar(.) > 0)
 
-cov_list <- root %>%
-  paste0(., "/data-raw/covariates/") %>%
-  list.dirs() %>%
-  extract(-1) %>%
-  lapply(
-    function(x) {
-      out <- x %>%
-        list.files(full.names = TRUE) %>%
-        rast()
-      return(out)
-    }
-  )
+# cov_list <- root %>%
+#   paste0(., "/data-raw/covariates/") %>%
+#   list.dirs() %>%
+#   extract(-1) %>%
+#   lapply(
+#     function(x) {
+#       out <- x %>%
+#         list.files(full.names = TRUE) %>%
+#         rast()
+#       return(out)
+#     }
+#   )
+#
+# cov_list2 <- list()
+#
+# for (i in 1:length(cov_list))
+# {
+#   cov_list2[[i]] <- crop(cov_list[[i]], EC_list[[i]])
+# }
+#
+# cov_list <- cov_list2
+#
+# rm(cov_list2)
 
-cov_list2 <- list()
-
-for (i in 1:length(cov_list))
-{
-  cov_list2[[i]] <- crop(cov_list[[i]], EC_list[[i]])
-}
-
-cov_list <- cov_list2
-
-rm(cov_list2)
-
-# Load orthophotos
+# 1.3: Load orthophotos
 
 ortho_files <- root %>%
   paste0(., "/data-raw/ortho/") %>%
@@ -69,7 +69,7 @@ for (i in 1:length(sites))
     rast()
 }
 
-# Load field shapefiles
+# 1.4: Load field shapefiles
 
 DK_fields <- list()
 
@@ -81,7 +81,7 @@ for (i in 1:length(sites))
   values(DK_fields[[i]]) <- NULL
 }
 
-# Load bare soil areas
+# 1.5: Load bare soil areas
 
 field_bare_list <- list()
 
@@ -93,7 +93,7 @@ for (i in 1:length(sites))
   values(field_bare_list[[i]]) <- NULL
 }
 
-# Load soil observations
+# 1.6: Load soil observations
 
 obs <- sites %>%
   sapply(
@@ -110,7 +110,10 @@ obs <- sites %>%
     }
   )
 
-mincols <- lapply(obs, function(x) ncol(x)) %>%
+mincols <- lapply(
+  obs,
+  function(x) ncol(x)
+  ) %>%
   unlist() %>%
   min()
 
@@ -148,14 +151,14 @@ obs %<>% lapply(function(x) {
 
 for (i in 1:length(sites))
 {
-  crs(cov_list[[i]]) <- crs_all
+  # crs(cov_list[[i]]) <- crs_all
   crs(EC_list[[i]]) <- crs_all
   crs(ortho_list[[i]]) <- crs_all
 }
 
 # Assign names to lists
 
-names(cov_list) <- sites
+# names(cov_list) <- sites
 names(EC_list) <- sites
 EC_list <- lapply(
   EC_list,
@@ -181,10 +184,12 @@ names(ortho_list) <- sites
 
 # Load input maps
 
-DK_2014 <- root %>%
-  paste0(., "/data-raw/input_maps/DK_2014_lite/") %>%
-  list.files(full.names = TRUE) %>%
-  rast()
+# 30 m maps not used due to size
+
+# DK_2014 <- root %>%
+#   paste0(., "/data-raw/input_maps/DK_2014_lite/") %>%
+#   list.files(full.names = TRUE) %>%
+#   rast()
 
 soilgrids <- root %>%
   paste0(., "/data-raw/input_maps/soilgrids/") %>%
@@ -193,7 +198,11 @@ soilgrids <- root %>%
 
 divisors <- c(rep(10, 6), rep(100, 2))
 
-soilgrids <- ifel(soilgrids == 32767.00, NA, soilgrids / divisors)
+soilgrids <- ifel(
+  soilgrids == 32767.00,
+  NA,
+  soilgrids / divisors
+  )
 
 
 # Round off EC
@@ -222,28 +231,28 @@ DK_RGB <- lapply(
 
 # Round off covariates
 
-decimals <- c(3, 3, 2, 2, 4, 2, 0, 3, 2, 2, 3, 3, 2, 2)
-
-f1 <- function(x) {
-  out <- base::round(x, digits = decimals)
-  return(out)
-}
-
-cov_list3 <- lapply(cov_list, function(r) {
-  out <- app(r, f1)
-  crs(out) <- crs(DK_EC[[1]])
-  return(out)
-})
+# decimals <- c(3, 3, 2, 2, 4, 2, 0, 3, 2, 2, 3, 3, 2, 2)
+#
+# f1 <- function(x) {
+#   out <- base::round(x, digits = decimals)
+#   return(out)
+# }
+#
+# cov_list3 <- lapply(cov_list, function(r) {
+#   out <- app(r, f1)
+#   crs(out) <- crs(DK_EC[[1]])
+#   return(out)
+# })
 
 
 # Crop covariates to field extents
 
-DK_topo <- list()
-
-for (i in 1:length(cov_list))
-{
-  DK_topo[[i]] <- mask(cov_list3[[i]], EC_list[[i]])
-}
+# DK_topo <- list()
+#
+# for (i in 1:length(cov_list))
+# {
+#   DK_topo[[i]] <- mask(cov_list3[[i]], EC_list[[i]])
+# }
 
 
 # Crop input data to areas surrounding fields
@@ -262,27 +271,27 @@ field_extents <- lapply(
 
 crs(field_extents) <- crs_all
 
-DK_soil_30m <- c(
-  DK_2014[[1]], DK_2014[[6]], DK_2014[[7]], DK_2014[[8]],
-  DK_2014[[3]]
-)
+# DK_soil_30m <- c(
+#   DK_2014[[1]], DK_2014[[6]], DK_2014[[7]], DK_2014[[8]],
+#   DK_2014[[3]]
+# )
+#
+# DK_unc_30m <- c(DK_2014[[2]], DK_2014[[4]])
 
-DK_unc_30m <- c(DK_2014[[2]], DK_2014[[4]])
+# DK_30m <- DK_soil_30m %>%
+#   terra::mask(
+#     .,
+#     field_extents
+#   )
 
-DK_30m <- DK_soil_30m %>%
-  terra::mask(
-    .,
-    field_extents
-  )
+# DK_30m_unc <- DK_unc_30m %>%
+#   terra::mask(
+#     .,
+#     field_extents
+#   )
 
-DK_30m_unc <- DK_unc_30m %>%
-  terra::mask(
-    .,
-    field_extents
-  )
-
-names(DK_30m) <- c("clay", "silt", "sand_f", "sand_c", "SOC")
-names(DK_30m_unc) <- c("clay_SD", "SOC_SD")
+# names(DK_30m) <- c("clay", "silt", "sand_f", "sand_c", "SOC")
+# names(DK_30m_unc) <- c("clay_SD", "SOC_SD")
 
 field_extents_longlat <- field_extents %>% project(soilgrids)
 
@@ -307,15 +316,15 @@ DK_soilgrids_unc %<>% mask(field_extents_longlat) %>% round(1)
 
 DK_fields %<>% vect
 DK_fields$Site <- sites
-names(DK_topo) <- sites
+# names(DK_topo) <- sites
 
 DK_fields %<>% wrap
 DK_observations <- lapply(obs, function(x) wrap(x))
 DK_EC %<>% lapply(function(x) wrap(x))
 DK_RGB %<>% lapply(function(x) wrap(x))
-DK_topo %<>% lapply(function(x) wrap(x))
-DK_30m %<>% wrap
-DK_30m_unc %<>% wrap
+# DK_topo %<>% lapply(function(x) wrap(x))
+# DK_30m %<>% wrap
+# DK_30m_unc %<>% wrap
 DK_soilgrids <- wrap(DK_soilgrids)
 DK_soilgrids_unc <- wrap(DK_soilgrids_unc)
 
@@ -324,9 +333,9 @@ usethis::use_data(
   DK_observations,
   DK_EC,
   DK_RGB,
-  DK_topo,
-  DK_30m,
-  DK_30m_unc,
+  # DK_topo,
+  # DK_30m,
+  # DK_30m_unc,
   DK_soilgrids,
   DK_soilgrids_unc,
   overwrite = TRUE

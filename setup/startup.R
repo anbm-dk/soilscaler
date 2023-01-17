@@ -1,6 +1,12 @@
 # Setup
 
-install.packages(c("devtools", "roxygen2", "testthat", "knitr", "pkgload"))
+install.packages(
+  c("devtools",
+    "roxygen2",
+    "testthat",
+    "knitr",
+    "pkgload")
+  )
 
 library(devtools)
 library(usethis)
@@ -9,10 +15,12 @@ library(usethis)
 
 # devtools::dev_sitrep() Doesn't work
 
-use_git_config(
-  user.name = "Anders Bjørn Møller"
-  , user.email = "perserkongen@gmail.com"
-)
+## 1: Github stuff
+
+# use_git_config(
+#   user.name = "Anders Bjørn Møller"
+#   , user.email = "perserkongen@gmail.com"
+# )
 
 # use_git()
 
@@ -26,21 +34,27 @@ R.version.string
 
 # gitcreds::gitcreds_set() # For personal access token
 
+## 2: Other stuff
+
 usethis::use_data_raw()
+
+usethis::use_build_ignore(
+  "setup"
+)
 
 # What I need
 
-# 1 imput data imported into R
+# 1 input data imported into R [OK]
 # - Input soil maps
 # - Soil observations
 # - EC and drone images
 # - dems?
 
-# 2 Downscaling fumction
+# 2 Downscaling function [OK]
 # - Input soil map
 # - Observations as list of spatial point datasets
 # - Covariates as a list of spatraster objects
-# - Inputs for caret
+# - Inputs for caret [wip]
 # -- method
 # -- tuning grid
 # -- trcontrol
@@ -59,16 +73,16 @@ usethis::use_data_raw()
 # - add another level for leave site out, to make maps independent
 # - use uncertainties from input maps?
 
-# 2 prediction function
+# 2 prediction function [to do]
 # - input scaling object
 # - covariates for new site (optional)
 # - else, produce maps for the existing locations only
 
-# 3 helper functions
+# 3 helper functions [to do]
 # - check if the input data are valid
 # - prepare data for train
 # - function to import data?
 
-# 4 Organize data to make them easily accessible
+# 4 Organize data to make them easily accessible [OK]
 
 # END
