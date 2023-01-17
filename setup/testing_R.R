@@ -5,6 +5,8 @@ library(devtools)
 
 load_all()
 
+
+
 # install_github("anbm-dk/soilscaler")
 # library(soilscaler)
 
@@ -22,18 +24,17 @@ library(rlang)  # For quosures
 
 library(Cubist)
 
-
 # Load data
 
-fields       <- DK_fields %>% vect
-obs          <- DK_observations %>% lapply(function(x) vect(x))
-EC           <- DK_EC   %>% lapply(function(x) rast(x))
-RGB          <- DK_RGB  %>% lapply(function(x) rast(x))
+fields       <- DK_fields %>% unwrap
+obs          <- DK_observations %>% lapply(function(x) unwrap(x))
+EC           <- DK_EC   %>% lapply(function(x) unwrap(x))
+RGB          <- DK_RGB  %>% lapply(function(x) unwrap(x))
 # topo         <- DK_topo %>% lapply(function(x) rast(x))
 # soil_30m     <- DK_30m  %>% rast
 # soil_30m_unc <- DK_30m_unc %>% rast
-sg           <- DK_soilgrids %>% rast
-sg_unc       <- DK_soilgrids_unc %>% rast
+sg           <- DK_soilgrids %>% unwrap
+sg_unc       <- DK_soilgrids_unc %>% unwrap
 
 
 # useDK_map <- TRUE
@@ -60,7 +61,7 @@ for(i in 1:length(obs))
   )
 }
 
-getwd() %>% paste0(., "/R/make_downscaler.R") %>% source()
+# getwd() %>% paste0(., "/R/make_downscaler.R") %>% source()
 
 downscaler1 <- make_downscaler(
   obs           = obs,
@@ -68,11 +69,11 @@ downscaler1 <- make_downscaler(
   model_type    = "lm",
   input         = my_input,
   # input_unc     = my_input_unc,
-  make_maps     = TRUE,
-  unc_factor    = 1,
+  make_maps     = FALSE,
+  # unc_factor    = 1,
   flatten_input = TRUE, # Needs fixing
   input_as_cov  = TRUE,
-  cov           = my_covariates, # change this name
+  cov           = my_covariates,
   scale_cov     = "by_input",
   center_cov    = TRUE,
   scale_obs     = TRUE,
@@ -85,9 +86,11 @@ downscaler1$accuracy
 
 downscaler1
 
+varImp(downscaler1$model_general)
+
 downscaler1$output_maps[[5]] %>% plot
 
-downscaler1$model_overall
+downscaler1$model_general
 
 
 # END

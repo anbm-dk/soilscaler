@@ -27,6 +27,7 @@ x$set_dep("caret")
 x$set_dep("ggplot2")
 x$set_dep("rlist")
 x$set_dep("rlang")
+x$set_dep("tibble")
 
 # Set authors
 

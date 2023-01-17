@@ -18,9 +18,29 @@
 #' @param keep_cov Append the covariates to the output object?
 #' @param keep_models Keep the models for mapping as part of the output object?
 #' @returns A downscaler model
+#' @export
+#' @importFrom Rdpack reprompt
 #' @examples
-#' add(1, 1)
-#' add(10, 1)
+#' library(magrittr)
+#' library(terra)
+#'
+#' data(DK_observations)
+#' data(DK_soilgrids)
+#' data(DK_EC)
+#'
+#' my_obs   <- DK_observations %>% lapply(function(x) unwrap(x))
+#' my_input <- DK_soilgrids %>% unwrap() %>% subset(1)
+#' my_cov   <- DK_EC %>% lapply(function(x) unwrap(x))
+#'
+#' ds <- make_downscaler(
+#' obs           = my_obs,
+#' targ_name     = "clay",
+#' input         = my_input,
+#' make_maps     = FALSE,
+#' cov           = my_cov
+#' )
+#'
+#' ds
 #'
 
 # Function to train a downscaler model
@@ -63,6 +83,10 @@ make_downscaler <- function(
 
   targ_col <- targ_name
   sitenames <- names(obs)
+
+  if(length(scale_cov) > 1) {
+    scale_cov <- "no"
+  }
 
   if (is.null(input)) {
     input_unc    <- NULL
@@ -140,7 +164,7 @@ make_downscaler <- function(
 
       if (flatten_input) {
         input_resampled[[i]] <- cov[[i]][[1]] * 0 + mean_in[[i]]
-        names(input_resampled[[i]]) <- c("input", "input_unc")[1:nlyr(input)]
+        names(input_resampled[[i]]) <- c("input", "input_unc")[1:terra::nlyr(input)]
       }
 
       obs[[i]] %<>%
@@ -151,7 +175,7 @@ make_downscaler <- function(
         )
     }
 
-    mean_in %<>% bind_rows()
+    mean_in %<>% dplyr::bind_rows(.)
   }
 
   # Option to scale and/or center observations
@@ -235,7 +259,11 @@ make_downscaler <- function(
 
   if (scale_cov == "by_input") {
     for (i in 1:length(sitenames)) {
-      means_i <- global(cov[[i]], "mean", na.rm = TRUE) %>% unlist()
+      means_i <- terra::global(
+        cov[[i]],
+        "mean",
+        na.rm = TRUE
+        ) %>% unlist()
       cov[[i]] %<>% "*"(input_resampled[[i]][[1]])
       cov[[i]] %<>% "/"(means_i)
     }
@@ -279,7 +307,7 @@ make_downscaler <- function(
   trdat <- vect(obs) %>%
     terra::values(.) %>%
     dplyr::select(., all_of(thesecolumns)) %>%
-    na.omit()
+    stats::na.omit(.)
 
   # Create folds for cross validation
 
@@ -399,7 +427,7 @@ make_downscaler <- function(
 
       notna <- rowSums(is.na(outcov_i)) == 0
 
-      output_i[notna] <- predict(
+      output_i[notna] <- caret::predict.train(
         models_leave_site_out[[i]],
         outcov_i
       )
@@ -435,7 +463,7 @@ make_downscaler <- function(
       )
     ),
     cor_out = rlang::quo(
-      cor(
+      stats::cor(
         .data[[targ_name]],
         output,
         use = "pairwise.complete.obs"
@@ -456,7 +484,7 @@ make_downscaler <- function(
           )
         ),
         cor_in = rlang::quo(
-          cor(
+          stats::cor(
             .data[[targ_name]],
             input,
             use = "pairwise.complete.obs"
@@ -497,12 +525,12 @@ make_downscaler <- function(
 
   if (results_plot) {
     results$plot <- obs %>%
-      vect() %>%
-      values() %>%
-      tibble() %>%
-      ggplot(
+      terra::vect(.) %>%
+      terra::values(.) %>%
+      tibble::tibble() %>%
+      ggplot2::ggplot(
         .,
-        aes(
+        ggplot2::aes(
           x = .data[[targ_name]],
           y = output,
           col = site

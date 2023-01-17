@@ -1,12 +1,13 @@
 # Setup
 
 install.packages(
-  c("devtools",
+  c(
+    "devtools",
     "roxygen2",
     "testthat",
     "knitr",
     "pkgload")
-  )
+)
 
 library(devtools)
 library(usethis)
@@ -36,11 +37,19 @@ R.version.string
 
 ## 2: Other stuff
 
-usethis::use_data_raw()
+# usethis::use_data_raw()  # Creates folder for raw data
 
 usethis::use_build_ignore(
   "setup"
 )
+
+use_pipe(export = TRUE)  # Make maggrittr pipes available to users
+
+devtools::document()
+
+devtools::run_examples()
+
+devtools::check(document = FALSE)
 
 # What I need
 
