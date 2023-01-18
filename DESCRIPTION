@@ -5,7 +5,7 @@ Description: Functions to downscale coarse-resolution soil maps to field scale, 
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.2.0
+RoxygenNote: 7.2.3
 Imports: 
     caret,
     dplyr,
@@ -14,7 +14,9 @@ Imports:
     Rdpack,
     rlang,
     rlist,
-    terra
+    terra,
+    tibble,
+    tidyselect
 URL: https://github.com/anbm-dk/soilscaler
 BugReports: https://github.com/anbm-dk/soilscaler/issues
 Depends: 
