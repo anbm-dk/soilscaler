@@ -13,8 +13,8 @@
 #' @source <https://doi.org/10.1016/j.geoderma.2020.114852>
 #' @examples
 #' library(terra)
-#' DK_fields <- unwrap(DK_fields)
-#' crs(DK_fields) <- "EPSG:25832"
+#' my_fields <- unwrap(DK_fields)
+#' crs(my_fields) <- "EPSG:25832"
 "DK_fields"
 
 #' Soil observations from five agricultural fields in Denmark.

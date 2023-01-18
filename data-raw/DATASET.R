@@ -118,7 +118,8 @@ mincols <- lapply(
   min()
 
 obs %<>% lapply(function(x) {
-  select(x, 1:mincols)
+  mincols_x <- colnames(x)[1:mincols]
+  select(x, all_of(mincols_x))
 })
 
 obs %<>% lapply(function(x) {

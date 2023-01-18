@@ -3,12 +3,14 @@
 # install.packages("devtools")
 library(devtools)
 
-load_all()
+test_download <- FALSE
 
-
-
-# install_github("anbm-dk/soilscaler")
-# library(soilscaler)
+if (test_download) {
+  install_github("anbm-dk/soilscaler")
+  library(soilscaler)
+} else {
+  load_all()
+}
 
 
 # Required packages
@@ -41,7 +43,7 @@ for(i in 1:length(my_obs))
   )
 }
 
-# getwd() %>% paste0(., "/R/make_downscaler.R") %>% source()
+getwd() %>% paste0(., "/R/make_downscaler.R") %>% source()
 
 downscaler1 <- make_downscaler(
   obs           = my_obs,

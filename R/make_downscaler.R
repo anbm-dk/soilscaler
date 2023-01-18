@@ -115,8 +115,11 @@ make_downscaler <- function(
     # Extract input
     if (!is.null(input_unc)) {
       input <- c(input, input_unc)
-      names(input) <- c("input", "input_unc")
+      inputnames <- c("input", "input_unc")
+    } else {
+      inputnames <- "input"
     }
+    names(input) <- inputnames
 
     listproj <- function(x) {
       out <- lapply(
@@ -170,8 +173,9 @@ make_downscaler <- function(
 
       if (flatten_input) {
         input_resampled[[i]] <- cov[[i]][[1]] * 0 + mean_in[[i]]
-        names(input_resampled[[i]]) <- c("input", "input_unc")[1:terra::nlyr(input)]
       }
+
+      names(input_resampled[[i]]) <- inputnames
 
       obs[[i]] %<>%
         terra::extract(
@@ -405,8 +409,9 @@ make_downscaler <- function(
         na.rm = TRUE
       )
       if (center_obs) {
-        baseline <- unlist(mean_in[i, 1])
-        output[[i]] %<>% "+"(baseline)
+        output[[i]] %<>%
+          c(., input_resampled[[i]][[1]]) %>%
+          sum(., na.rm = TRUE)
       }
       # also modify output maps in case of log transformations
       names(output[[i]]) <- "output"
@@ -422,7 +427,7 @@ make_downscaler <- function(
         )
     }
   } else {
-    # Make predictions for observation points
+    # Make predictions for observation points if not making maps
     for (i in 1:length(sitenames)) {
       outcov_i <- obs[[i]] %>%
         terra::values(.) %>%
@@ -444,8 +449,7 @@ make_downscaler <- function(
       )
 
       if (center_obs) {
-        baseline <- unlist(mean_in[i, 1])
-        output_i %<>% "+"(baseline)
+        output_i %<>% "+"(obs[[i]]$input)
       }
       # also modify output in case of log transformations
 
@@ -541,10 +545,10 @@ make_downscaler <- function(
       tibble::tibble(.) %>%
       ggplot2::ggplot(
         .,
-        ggplot2::aes_string(
-          x = ".data[[targ_name]]",
-          y = "output",
-          col = "site"
+        ggplot2::aes(
+          x = .data[[targ_name]],
+          y = .data$output,
+          col = .data$site
         )
       ) +
       ggplot2::geom_point() +
