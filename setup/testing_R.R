@@ -43,7 +43,7 @@ for(i in 1:length(my_obs))
   )
 }
 
-getwd() %>% paste0(., "/R/make_downscaler.R") %>% source()
+# getwd() %>% paste0(., "/R/make_downscaler.R") %>% source()
 
 downscaler1 <- make_downscaler(
   obs           = my_obs,
@@ -51,13 +51,13 @@ downscaler1 <- make_downscaler(
   model_type    = "lm",
   input         = my_input,
   make_maps     = TRUE,
-  flatten_input = TRUE, # Needs fixing
+  flatten_input = FALSE, # Needs fixing
   input_as_cov  = TRUE,
   cov           = my_covariates,
   scale_cov     = "by_input",
   center_cov    = TRUE,
   scale_obs     = TRUE,
-  center_obs    = TRUE,
+  center_obs    = FALSE,
   results_plot  = TRUE,
   keep_models   = TRUE
 )
