@@ -310,7 +310,7 @@ DK_soilgrids_unc %<>% mask(field_extents_longlat) %>% round(1)
 # 3: Import input maps (OK)
 # 4: Crop input maps to areas surrounding fields (OK)
 # 5: Give names to all the lists (OK)
-# 6: Documentation
+# 6: Documentation (work in progress)
 
 # NB: Take into account non-exportable objects. Use wrap.
 
@@ -318,6 +318,33 @@ DK_fields %<>% vect
 DK_fields$Site <- sites
 # names(DK_topo) <- sites
 
+# Remove crs
+# UTM; EPSG:25832
+# SG: EPSG:4326
+crs(DK_fields) <- NULL
+obs %<>% lapply(
+  function(x) {
+    crs(x) <- NULL
+    return(x)
+  }
+)
+DK_EC %<>% lapply(
+  function(x) {
+    crs(x) <- NULL
+    return(x)
+  }
+)
+DK_RGB %<>% lapply(
+  function(x) {
+    crs(x) <- NULL
+    return(x)
+  }
+)
+crs(DK_soilgrids) <- NULL
+crs(DK_soilgrids_unc) <- NULL
+
+
+# Wrap objects
 DK_fields %<>% wrap
 DK_observations <- lapply(obs, function(x) wrap(x))
 DK_EC %<>% lapply(function(x) wrap(x))

@@ -73,9 +73,12 @@ data(DK_observations)
 data(DK_soilgrids)
 data(DK_EC)
 
-my_obs   <- DK_observations \%>\% lapply(function(x) unwrap(x))
+my_obs <- list_unwrap(DK_observations, "EPSG:25832")
+
 my_input <- DK_soilgrids \%>\% unwrap() \%>\% subset(1)
-my_cov   <- DK_EC \%>\% lapply(function(x) unwrap(x))
+crs(my_input) <- "EPSG:4326"
+
+my_cov <- list_unwrap(DK_EC, "EPSG:25832")
 
 ds <- make_downscaler(
 obs           = my_obs,

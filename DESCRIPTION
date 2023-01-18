@@ -15,7 +15,8 @@ Imports:
     rlang,
     rlist,
     terra,
-    tibble
+    tibble,
+    tidyselect
 URL: https://github.com/anbm-dk/soilscaler
 BugReports: https://github.com/anbm-dk/soilscaler/issues
 Depends: 

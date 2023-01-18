@@ -3,11 +3,11 @@
 \docType{data}
 \name{DK_observations}
 \alias{DK_observations}
-\title{Soil observations for five agricultural fields in Denmark.}
+\title{Soil observations from five agricultural fields in Denmark.}
 \format{
 \subsection{\code{DK_observations}}{
 
-List of wrapped spatvectors. Unwrap using DK_observations \%>\% lapply(function(x) terra::vect(x))
+List of wrapped SpatVector point datasets.
 }
 }
 \source{
@@ -17,6 +17,12 @@ List of wrapped spatvectors. Unwrap using DK_observations \%>\% lapply(function(
 DK_observations
 }
 \description{
-Field extents for the research fields described in Møller et al. (2020)
+Points with measured soil properties from the five research fields described in Møller et al. (2020).
+}
+\examples{
+list_unwrap(
+  DK_observations,
+  "EPSG:25832"
+  )
 }
 \keyword{datasets}

@@ -20,6 +20,8 @@
 #' @returns A downscaler model
 #' @export
 #' @importFrom Rdpack reprompt
+#' @importFrom rlang .data
+#' @importFrom magrittr %<>%
 #' @examples
 #' library(magrittr)
 #' library(terra)
@@ -28,9 +30,12 @@
 #' data(DK_soilgrids)
 #' data(DK_EC)
 #'
-#' my_obs   <- DK_observations %>% lapply(function(x) unwrap(x))
+#' my_obs <- list_unwrap(DK_observations, "EPSG:25832")
+#'
 #' my_input <- DK_soilgrids %>% unwrap() %>% subset(1)
-#' my_cov   <- DK_EC %>% lapply(function(x) unwrap(x))
+#' crs(my_input) <- "EPSG:4326"
+#'
+#' my_cov <- list_unwrap(DK_EC, "EPSG:25832")
 #'
 #' ds <- make_downscaler(
 #' obs           = my_obs,
@@ -83,6 +88,7 @@ make_downscaler <- function(
 
   targ_col <- targ_name
   sitenames <- names(obs)
+  . <- NULL  # To avoid warnings in the package check.
 
   if(length(scale_cov) > 1) {
     scale_cov <- "no"
@@ -185,7 +191,7 @@ make_downscaler <- function(
         .data[[targ_name]]
       ),
       mean_targ = rlang::quo(
-        mean(targ,  na.rm = TRUE)
+        mean(.data$targ,  na.rm = TRUE)
       )
     )
 
@@ -194,10 +200,10 @@ make_downscaler <- function(
         rlist::list.append(
           .,
           mean_input = rlang::quo(
-            mean(input,  na.rm = TRUE)
+            mean(.data$input,  na.rm = TRUE)
           ),
           targ_sca = rlang::quo(
-            targ * mean_input / mean_targ
+            .data$targ * .data$mean_input / .data$mean_targ
           )
         )
 
@@ -209,7 +215,7 @@ make_downscaler <- function(
         rlist::list.append(
           .,
           targ_cen = rlang::quo(
-            targ - mean_targ
+            .data$targ - .data$mean_targ
           )
         )
 
@@ -221,10 +227,10 @@ make_downscaler <- function(
         rlist::list.append(
           .,
           targ_sca_mean = rlang::quo(
-            mean(targ_sca,  na.rm = TRUE)
+            mean(.data$targ_sca,  na.rm = TRUE)
           ),
           targ_sca_cen = rlang::quo(
-            targ_sca - targ_sca_mean
+            .data$targ_sca - .data$targ_sca_mean
           )
         )
 
@@ -304,9 +310,11 @@ make_downscaler <- function(
 
   thesecolumns <- c(targ_col, covnames, "site")
 
-  trdat <- vect(obs) %>%
+  trdat <- terra::vect(obs) %>%
     terra::values(.) %>%
-    dplyr::select(., all_of(thesecolumns)) %>%
+    dplyr::select(
+      ., tidyselect::all_of(thesecolumns)
+      ) %>%
     stats::na.omit(.)
 
   # Create folds for cross validation
@@ -418,7 +426,10 @@ make_downscaler <- function(
     for (i in 1:length(sitenames)) {
       outcov_i <- obs[[i]] %>%
         terra::values(.) %>%
-        dplyr::select(., all_of(covnames))
+        dplyr::select(
+          .,
+          tidyselect::all_of(covnames)
+          )
 
       output_i <- obs[[i]] %>%
         terra::values() %>%
@@ -459,13 +470,13 @@ make_downscaler <- function(
     RMSE_out = rlang::quo(
       rmse_na(
         .data[[targ_name]],
-        output
+        .data$output
       )
     ),
     cor_out = rlang::quo(
       stats::cor(
         .data[[targ_name]],
-        output,
+        .data$output,
         use = "pairwise.complete.obs"
       )
     )
@@ -480,13 +491,13 @@ make_downscaler <- function(
         RMSE_in = rlang::quo(
           rmse_na(
             .data[[targ_name]],
-            input
+            .data$input
           )
         ),
         cor_in = rlang::quo(
           stats::cor(
             .data[[targ_name]],
-            input,
+            .data$input,
             use = "pairwise.complete.obs"
           )
         )
@@ -505,7 +516,7 @@ make_downscaler <- function(
   results$accuracy <- obs %>%
     terra::vect(.) %>%
     terra::values(.) %>%
-    dplyr::group_by(., site) %>%
+    dplyr::group_by(., .data$site) %>%
     dplyr::summarise(., !!! args_acc)
 
   if (keep_cov) {
@@ -527,18 +538,18 @@ make_downscaler <- function(
     results$plot <- obs %>%
       terra::vect(.) %>%
       terra::values(.) %>%
-      tibble::tibble() %>%
+      tibble::tibble(.) %>%
       ggplot2::ggplot(
         .,
-        ggplot2::aes(
-          x = .data[[targ_name]],
-          y = output,
-          col = site
+        ggplot2::aes_string(
+          x = ".data[[targ_name]]",
+          y = "output",
+          col = "site"
         )
       ) +
-      geom_point() +
-      geom_abline() +
-      coord_equal()
+      ggplot2::geom_point() +
+      ggplot2::geom_abline() +
+      ggplot2::coord_equal()
   }
 
   return(results)

@@ -7,9 +7,9 @@
 \format{
 \subsection{\code{DK_fields}}{
 
-A wrapped spatvector with five geometries. Unwrap using terra::vect(DK_fields)
+A wrapped SpatVector polygons dataset with five geometries.
 \describe{
-\item{Site}{The name of the research field}
+\item{Site}{The name of the research field.}
 ...
 }
 }
@@ -21,6 +21,11 @@ A wrapped spatvector with five geometries. Unwrap using terra::vect(DK_fields)
 DK_fields
 }
 \description{
-Field extents for the research fields described in Møller et al. (2020)
+Polygon field extents for the research fields described in Møller et al. (2020)
+}
+\examples{
+library(terra)
+DK_fields <- unwrap(DK_fields)
+crs(DK_fields) <- "EPSG:25832"
 }
 \keyword{datasets}

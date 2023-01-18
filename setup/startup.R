@@ -47,7 +47,7 @@ use_pipe(export = TRUE)  # Make maggrittr pipes available to users
 
 devtools::document()
 
-devtools::run_examples()
+# devtools::run_examples()
 
 devtools::check(document = FALSE)
 
