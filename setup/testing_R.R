@@ -72,5 +72,12 @@ downscaler1$output_maps[[5]] %>% plot
 
 downscaler1$model_general
 
+par(mfrow = c(2, 3))
+
+for (i in 1:length(my_obs)) {
+  plot(my_obs[[i]], "clay", main = names(my_obs)[i])
+}
+
+dev.off()
 
 # END

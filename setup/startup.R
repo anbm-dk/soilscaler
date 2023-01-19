@@ -14,8 +14,6 @@ library(usethis)
 
 # use_devtools()
 
-# devtools::dev_sitrep() Doesn't work
-
 ## 1: Github stuff
 
 # use_git_config(
@@ -38,6 +36,10 @@ R.version.string
 ## 2: Other stuff
 
 # usethis::use_data_raw()  # Creates folder for raw data
+
+# usethis::use_readme_rmd()  # Creates and rmd for the readme
+
+devtools::build_readme()  # Renders the readme
 
 usethis::use_build_ignore(
   "setup"
