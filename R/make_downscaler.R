@@ -14,7 +14,8 @@
 #' @param scale_obs Should the function scale the observations relative to the input maps? Back-transformation is automatic for predictions. Default is no scaling.
 #' @param center_cov Should the function center the covariates?
 #' @param center_obs Should the function center the observations? Back-transformation is automatic for predictions.
-#' @param results_plot Should the output contain a plot with the results?
+#' @param plot_results Should the output contain a plot with the results?
+#' @param keep_obs Append the modified observations to the output object?
 #' @param keep_cov Append the covariates to the output object?
 #' @param keep_models Keep the models for mapping as part of the output object?
 #' @returns A downscaler model
@@ -60,14 +61,15 @@ make_downscaler <- function(
     make_maps     = TRUE,
     unc_factor    = 1,
     flatten_input = TRUE,
-    input_as_cov  = TRUE,
+    input_as_cov  = FALSE,
     scale_cov     = c("no", "by_input", "by_SD"),
     scale_obs     = FALSE,
     center_cov    = TRUE,
     center_obs    = TRUE,
-    results_plot  = FALSE,
+    plot_results  = FALSE,
+    keep_obs      = FALSE,
     keep_cov      = FALSE,
-    keep_models   = FALSE
+    keep_models   = TRUE
 ) {
   # To do:
   # Include option to use input map as a covariate or not [OK]
@@ -115,8 +117,11 @@ make_downscaler <- function(
     # Extract input
     if (!is.null(input_unc)) {
       input <- c(input, input_unc)
-      names(input) <- c("input", "input_unc")
+      inputnames <- c("input", "input_unc")
+    } else {
+      inputnames <- "input"
     }
+    names(input) <- inputnames
 
     listproj <- function(x) {
       out <- lapply(
@@ -155,6 +160,31 @@ make_downscaler <- function(
           )
       }
 
+      # Extract raw input values
+      if (crs_in == crs_obs[[i]]) {
+        obs[[i]]$input_raw <- terra::extract(
+          input,
+          obs[[i]],
+          ID = FALSE,
+          layer = 1,
+          raw = TRUE
+        )
+      } else {
+        obs[[i]]$input_raw <- obs[[i]] %>%
+          terra::project(
+            .,
+            crs_in
+          ) %>%
+          terra::extract(
+            input,
+            .,
+            ID = FALSE,
+            layer = 1,
+            raw = TRUE
+          )
+      }
+
+      # Process resampled input maps
       input_resampled[[i]] %<>%
         terra::mask(
           .,
@@ -170,8 +200,9 @@ make_downscaler <- function(
 
       if (flatten_input) {
         input_resampled[[i]] <- cov[[i]][[1]] * 0 + mean_in[[i]]
-        names(input_resampled[[i]]) <- c("input", "input_unc")[1:terra::nlyr(input)]
       }
+
+      names(input_resampled[[i]]) <- inputnames
 
       obs[[i]] %<>%
         terra::extract(
@@ -405,8 +436,9 @@ make_downscaler <- function(
         na.rm = TRUE
       )
       if (center_obs) {
-        baseline <- unlist(mean_in[i, 1])
-        output[[i]] %<>% "+"(baseline)
+        output[[i]] %<>%
+          c(., input_resampled[[i]][[1]]) %>%
+          sum(., na.rm = TRUE)
       }
       # also modify output maps in case of log transformations
       names(output[[i]]) <- "output"
@@ -422,7 +454,7 @@ make_downscaler <- function(
         )
     }
   } else {
-    # Make predictions for observation points
+    # Make predictions for observation points if not making maps
     for (i in 1:length(sitenames)) {
       outcov_i <- obs[[i]] %>%
         terra::values(.) %>%
@@ -444,8 +476,7 @@ make_downscaler <- function(
       )
 
       if (center_obs) {
-        baseline <- unlist(mean_in[i, 1])
-        output_i %<>% "+"(baseline)
+        output_i %<>% "+"(obs[[i]]$input)
       }
       # also modify output in case of log transformations
 
@@ -474,10 +505,12 @@ make_downscaler <- function(
       )
     ),
     cor_out = rlang::quo(
-      stats::cor(
-        .data[[targ_name]],
-        .data$output,
-        use = "pairwise.complete.obs"
+      suppressWarnings(
+        stats::cor(
+          .data[[targ_name]],
+          .data$output,
+          use = "pairwise.complete.obs"
+        )
       )
     )
   )
@@ -491,14 +524,16 @@ make_downscaler <- function(
         RMSE_in = rlang::quo(
           rmse_na(
             .data[[targ_name]],
-            .data$input
+            .data$input_raw
           )
         ),
         cor_in = rlang::quo(
-          stats::cor(
-            .data[[targ_name]],
-            .data$input,
-            use = "pairwise.complete.obs"
+          suppressWarnings(
+            stats::cor(
+              .data[[targ_name]],
+              .data$input_raw,
+              use = "pairwise.complete.obs"
+            )
           )
         )
       ) %>%
@@ -523,7 +558,9 @@ make_downscaler <- function(
     results$cov <- cov
   }
 
-  results$obs <- obs
+  if (keep_obs) {
+    results$obs <- obs
+  }
 
   if (keep_models) {
     results$model_general <- model_general
@@ -534,17 +571,17 @@ make_downscaler <- function(
     results$output_maps <- output
   }
 
-  if (results_plot) {
+  if (plot_results) {
     results$plot <- obs %>%
       terra::vect(.) %>%
       terra::values(.) %>%
       tibble::tibble(.) %>%
       ggplot2::ggplot(
         .,
-        ggplot2::aes_string(
-          x = ".data[[targ_name]]",
-          y = "output",
-          col = "site"
+        ggplot2::aes(
+          x = .data[[targ_name]],
+          y = .data$output,
+          col = .data$site
         )
       ) +
       ggplot2::geom_point() +

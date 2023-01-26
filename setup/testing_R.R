@@ -3,12 +3,14 @@
 # install.packages("devtools")
 library(devtools)
 
-load_all()
+test_download <- FALSE
 
-
-
-# install_github("anbm-dk/soilscaler")
-# library(soilscaler)
+if (test_download) {
+  install_github("anbm-dk/soilscaler")
+  library(soilscaler)
+} else {
+  load_all()
+}
 
 
 # Required packages
@@ -49,14 +51,14 @@ downscaler1 <- make_downscaler(
   model_type    = "lm",
   input         = my_input,
   make_maps     = TRUE,
-  flatten_input = TRUE, # Needs fixing
+  flatten_input = TRUE,
   input_as_cov  = TRUE,
   cov           = my_covariates,
   scale_cov     = "by_input",
   center_cov    = TRUE,
   scale_obs     = TRUE,
-  center_obs    = TRUE,
-  results_plot  = TRUE,
+  center_obs    = FALSE,
+  plot_results  = TRUE,
   keep_models   = TRUE
 )
 
@@ -70,5 +72,12 @@ downscaler1$output_maps[[5]] %>% plot
 
 downscaler1$model_general
 
+par(mfrow = c(2, 3))
+
+for (i in 1:length(my_obs)) {
+  plot(my_obs[[i]], "clay", main = names(my_obs)[i])
+}
+
+dev.off()
 
 # END

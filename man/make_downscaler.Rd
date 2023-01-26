@@ -14,14 +14,15 @@ make_downscaler(
   make_maps = TRUE,
   unc_factor = 1,
   flatten_input = TRUE,
-  input_as_cov = TRUE,
+  input_as_cov = FALSE,
   scale_cov = c("no", "by_input", "by_SD"),
   scale_obs = FALSE,
   center_cov = TRUE,
   center_obs = TRUE,
-  results_plot = FALSE,
+  plot_results = FALSE,
+  keep_obs = FALSE,
   keep_cov = FALSE,
-  keep_models = FALSE
+  keep_models = TRUE
 )
 }
 \arguments{
@@ -53,7 +54,9 @@ make_downscaler(
 
 \item{center_obs}{Should the function center the observations? Back-transformation is automatic for predictions.}
 
-\item{results_plot}{Should the output contain a plot with the results?}
+\item{plot_results}{Should the output contain a plot with the results?}
+
+\item{keep_obs}{Append the modified observations to the output object?}
 
 \item{keep_cov}{Append the covariates to the output object?}
 

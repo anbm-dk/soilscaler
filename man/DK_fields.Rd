@@ -25,7 +25,7 @@ Polygon field extents for the research fields described in Møller et al. (2020)
 }
 \examples{
 library(terra)
-DK_fields <- unwrap(DK_fields)
-crs(DK_fields) <- "EPSG:25832"
+my_fields <- unwrap(DK_fields)
+crs(my_fields) <- "EPSG:25832"
 }
 \keyword{datasets}

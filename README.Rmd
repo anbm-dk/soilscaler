@@ -1,0 +1,238 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# soilscaler
+
+<!-- badges: start -->
+<!-- badges: end -->
+
+The R package soilscaler contains functions to downscale coarse-resolution soil maps to higher resolutions by combining high-resolution covariates with soil observations from other sites. The goal of the package is to provide a workflow which is userfriendly and straightforward, while being flexible enough to allow experimentation.
+
+## 1 Installation
+
+You can install the development version of soilscaler from [GitHub](https://github.com/) with:
+
+``` r
+# install.packages("devtools")
+devtools::install_github("anbm-dk/soilscaler")
+```
+
+## 2 Input data
+
+The main function for the package is `make_downscaler`, which fits prediction models for downscaling and tests their accuracies using leave-site-out cross-validation.
+
+The required inputs for the function include:
+
+1. Soil observations for each site, as list of `SpatVector` point objects. The data sets can contain different numbers of points, but the column names and formats must match.
+2. High-resolution covariates for each site, as a list of `SpatRaster` objects. The number of layers and the layer names must match.
+3. A coarse-resolution input map in `SpatRaster` format. The input map is technically optional. However, some of the features in the function depend on the input map and become unavailable if it is absent.
+
+The package contains data examples for the inputs. Firstly, `DK_observations` are soil observations from five research fields in Denmark. The function `list_unwrap` unwraps the data.
+
+```{r observations, fig.asp = 0.5}
+library(terra)
+library(magrittr)
+library(soilscaler)
+
+my_obs <- list_unwrap(DK_observations, "EPSG:25832")
+
+par(mfrow = c(2, 3))
+
+for (i in 1:5) {
+  plot(my_obs[[i]], "clay", main = names(my_obs)[i])
+}
+```
+
+Secondly, the package contains lists with electromagnetic induction (EMI) measurements (`DK_EC`) and bare soil aerial photos (`DK_RGB`) from the fields, as examples of high-resolution covariates.
+
+```{r covariates, fig.asp = 0.5}
+my_EC  <- list_unwrap(DK_EC, "EPSG:25832")
+my_RGB <- list_unwrap(DK_RGB, "EPSG:25832")
+
+par(mfrow = c(2, 3))
+for (i in 1:5) {
+  plot(my_EC[[i]], main = names(my_obs)[i])
+}
+
+par(mfrow = c(2, 3))
+for (i in 1:5) {
+  plotRGB(my_RGB[[i]], mar = c(0, 0, 2, 0), main = names(my_obs)[i])
+}
+
+my_covariates <- list()
+for(i in 1:5) {
+  my_covariates[[i]] <- c(my_EC[[i]], my_RGB[[i]])
+}
+```
+
+Lastly, the package contains an example of a coarse resolution input map. This map contains clay and soil organic carbon in the areas surrounding the fields, extracted from [SoilGrids250m 2.0](https://soilgrids.org/). Here we use the clay contents from this map.
+
+```{r input, fig.asp = 0.5}
+data("DK_fields")
+
+my_fields <- unwrap(DK_fields)
+crs(my_fields) <- "EPSG:25832"
+
+my_input <- DK_soilgrids %>% unwrap() %>% subset(1)
+crs(my_input) <- "EPSG:4326"
+
+par(mfrow = c(2, 3))
+
+for (i in 1:5) {
+  e <- my_fields[i] %>%
+    ext() %>%
+    extend(., 100) %>%
+    project(., "EPSG:25832", "EPSG:4326")
+  
+  plot(
+    my_input,
+    main = names(my_obs)[i],
+    ext = e, type = "continuous",
+    range = minmax(my_input)
+    )
+  
+  plot(project(my_fields[i], "EPSG:4326"), add = TRUE)
+}
+```
+
+## 3 Downscaling
+
+### 3.1 Default settings
+
+We can now use the data in the function `make_downscaler`. In addition to the inputs, we specify the name of the column containing the target variable, and we set `plot_results = TRUE`, which creates a correlation plot for the results. The function handles projections internally, so the input maps do not need to have the same projection as the observations and covariates (but observations and covariates must still have the same projection for each site).
+
+```{r basic_scaler, fig.asp = 0.5}
+downscaler1 <- make_downscaler(
+  obs          = my_obs,
+  cov          = my_covariates,
+  input        = my_input,
+  targ_name    = "clay",
+  plot_results = TRUE
+)
+
+downscaler1$accuracy
+
+downscaler1$plot
+
+par(mfrow = c(2, 3))
+for (i in 1:5) {
+  plot(downscaler1$output_maps[[i]], main = names(my_obs)[i])
+}
+```
+
+The output also contains a general prediction model for all the sites and the individual models used for leave-site-out predictions.
+
+```{r models, fig.asp = 0.5}
+downscaler1$model_general$finalModel
+
+library(dplyr)
+
+lapply(
+  downscaler1$models_leave_site_out,
+  function(x) x$finalModel$coefficients
+  ) %>%
+  bind_rows()
+```
+
+### 3.2 Scaling
+
+With the default settings, the function centers the observations and covariates for each site and add the input map to the predictions as a flat baseline. In addition to these centering operations, the function has options for scaling the observations and/or covariates relative to the input (It can also scale covariates by their standard deviations).
+
+```{r scaled_scaler, fig.asp = 0.5}
+downscaler2 <- make_downscaler(
+  obs          = my_obs,
+  cov          = my_covariates,
+  input        = my_input,
+  targ_name    = "clay",
+  scale_cov    = "by_input",
+  scale_obs    = TRUE,
+  plot_results = TRUE
+)
+
+downscaler2$accuracy
+
+downscaler2$plot
+```
+
+### 3.3 Input map as a covariate
+
+In addition to its role as a baseline for prediction, the input map can serve as an additional covariate. 
+
+```{r input_cov, fig.asp = 0.5}
+downscaler_input <- make_downscaler(
+  obs          = my_obs,
+  cov          = my_covariates,
+  input        = my_input,
+  targ_name    = "clay",
+  input_as_cov = TRUE,
+  center_cov   = FALSE,
+  plot_results = TRUE
+)
+
+downscaler_input$accuracy
+
+downscaler_input$model_general$finalModel
+
+downscaler_input$plot
+```
+
+### 3.4 Model types
+
+The default prediction model uses linear regression. Other model types can be passed on to `caret::train()` through the argument `model_type`.
+
+```{r rf_scaler, fig.asp = 0.5, message=FALSE}
+library(randomForest)
+
+downscaler_rf <- make_downscaler(
+  model_type   = "rf",
+  obs          = my_obs,
+  cov          = my_covariates,
+  input        = my_input,
+  targ_name    = "clay",
+  scale_cov    = "by_input",
+  scale_obs    = TRUE
+)
+
+downscaler_rf$accuracy
+
+varImp(downscaler_rf$model_general)
+```
+
+## 3.5 Minimal objects
+
+As previously mentioned, the input map is optional (but recommended). Further options can omit prediction models from the results and turn off the automatic generation of output maps, which can sometimes be convenient.
+
+```{r minimum_scaler, fig.asp = 0.5}
+library(randomForest)
+
+downscaler_lite <- make_downscaler(
+  obs          = my_obs,
+  cov          = my_covariates,
+  targ_name    = "clay",
+  keep_models  = FALSE,
+  make_maps    = FALSE
+)
+
+downscaler_lite
+```
+
+## Future additions
+
+- Option to pass additional arguments to `caret::train()`
+- Option to use a log transformation internally.
+- A prediction function for new sites.
+- A bootstrapping procedure for uncertainty assessment.
+- An option scale `obs` and `cov` relative to the input uncertainty.
+- Make covariates optional, using input as a replacement.
