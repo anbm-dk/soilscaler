@@ -1,6 +1,6 @@
 Package: soilscaler
 Title: Downscale digital soil maps to higher resolutions
-Version: 0.0.0.9000
+Version: 1.0
 Description: Functions to downscale coarse-resolution soil maps to field scale, using high-resolution covariates and soil observations from other locations.
 License: MIT + file LICENSE
 Encoding: UTF-8

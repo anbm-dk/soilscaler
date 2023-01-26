@@ -53,6 +53,8 @@ devtools::document()
 
 devtools::check(document = FALSE)
 
+devtools::install()
+
 # What I need
 
 # 1 input data imported into R [OK]

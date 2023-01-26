@@ -51,14 +51,14 @@ downscaler1 <- make_downscaler(
   model_type    = "lm",
   input         = my_input,
   make_maps     = TRUE,
-  flatten_input = FALSE, # Needs fixing
+  flatten_input = TRUE,
   input_as_cov  = TRUE,
   cov           = my_covariates,
   scale_cov     = "by_input",
   center_cov    = TRUE,
   scale_obs     = TRUE,
   center_obs    = FALSE,
-  results_plot  = TRUE,
+  plot_results  = TRUE,
   keep_models   = TRUE
 )
 

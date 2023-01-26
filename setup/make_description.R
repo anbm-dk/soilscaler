@@ -17,6 +17,10 @@ x$set(
   BugReports = "https://github.com/anbm-dk/soilscaler/issues"
 )
 
+# Set version
+
+x$set_version("1.0")
+
 # Set dependencies
 
 x$set_dep("terra")
