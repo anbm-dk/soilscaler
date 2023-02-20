@@ -19,7 +19,7 @@ x$set(
 
 # Set version
 
-x$set_version("1.0")
+x$set_version("1.0.1")
 
 # Set dependencies
 

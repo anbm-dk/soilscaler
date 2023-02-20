@@ -18,14 +18,14 @@ knitr::opts_chunk$set(
 <!-- badges: start -->
 <!-- badges: end -->
 
-The R package soilscaler contains functions to downscale coarse-resolution soil maps to higher resolutions by combining high-resolution covariates with soil observations from other sites. The goal of the package is to provide a workflow which is userfriendly and straightforward, while being flexible enough to allow experimentation.
+The R package `soilscaler` contains functions to downscale coarse-resolution soil maps to higher resolutions by combining high-resolution covariates with soil observations from other sites. The goal of the package is to provide a workflow which is user-friendly and straightforward, while being flexible enough to allow experimentation.
 
 ## 1 Installation
 
-You can install the development version of soilscaler from [GitHub](https://github.com/) with:
+You can install the development version of `soilscaler` from [GitHub](https://github.com/) with:
 
 ``` r
-# install.packages("devtools")
+install.packages("devtools")
 devtools::install_github("anbm-dk/soilscaler")
 ```
 
@@ -146,7 +146,7 @@ lapply(
   bind_rows()
 ```
 
-### 3.2 Scaling
+### 3.2 Scaling covariates and/or observations
 
 With the default settings, the function centers the observations and covariates for each site and add the input map to the predictions as a flat baseline. In addition to these centering operations, the function has options for scaling the observations and/or covariates relative to the input (It can also scale covariates by their standard deviations).
 
@@ -210,7 +210,7 @@ downscaler_rf$accuracy
 varImp(downscaler_rf$model_general)
 ```
 
-## 3.5 Minimal objects
+### 3.5 Minimal objects
 
 As previously mentioned, the input map is optional (but recommended). Further options can omit prediction models from the results and turn off the automatic generation of output maps, which can sometimes be convenient.
 
@@ -228,7 +228,7 @@ downscaler_lite <- make_downscaler(
 downscaler_lite
 ```
 
-## Future additions
+## 4 Future additions
 
 - Option to pass additional arguments to `caret::train()`
 - Option to use a log transformation internally.

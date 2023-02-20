@@ -89,7 +89,13 @@ make_downscaler <- function(
   # Check for number of sites
 
   targ_col <- targ_name
-  sitenames <- names(obs)
+
+  if(is.null(names(obs))) {
+    sitenames <- paste0("Site_", c(1:length(obs)))
+  } else {
+    sitenames <- names(obs) %>% make.names(unique = TRUE)
+  }
+
   . <- NULL  # To avoid warnings in the package check.
 
   if(length(scale_cov) > 1) {

@@ -6,19 +6,19 @@
 <!-- badges: start -->
 <!-- badges: end -->
 
-The R package soilscaler contains functions to downscale
+The R package `soilscaler` contains functions to downscale
 coarse-resolution soil maps to higher resolutions by combining
 high-resolution covariates with soil observations from other sites. The
-goal of the package is to provide a workflow which is userfriendly and
+goal of the package is to provide a workflow which is user-friendly and
 straightforward, while being flexible enough to allow experimentation.
 
 ## 1 Installation
 
-You can install the development version of soilscaler from
+You can install the development version of `soilscaler` from
 [GitHub](https://github.com/) with:
 
 ``` r
-# install.packages("devtools")
+install.packages("devtools")
 devtools::install_github("anbm-dk/soilscaler")
 ```
 
@@ -223,7 +223,7 @@ lapply(
 #> 5       0.0418        0.174 -0.0487  0.192 -0.140
 ```
 
-### 3.2 Scaling
+### 3.2 Scaling covariates and/or observations
 
 With the default settings, the function centers the observations and
 covariates for each site and add the input map to the predictions as a
@@ -321,23 +321,23 @@ downscaler_rf$accuracy
 #> # A tibble: 5 × 5
 #>   site     RMSE_in RMSE_out  cor_in cor_out
 #>   <chr>      <dbl>    <dbl>   <dbl>   <dbl>
-#> 1 Estrup     4.11     3.94  -0.329    0.538
-#> 2 Faardrup   2.23     2.03   0.0587   0.426
-#> 3 Jyndevad   0.526    0.650 -0.0581   0.215
-#> 4 Silstrup   2.36     2.18   0.304    0.640
-#> 5 Vindum     3.05     2.26  -0.322    0.606
+#> 1 Estrup     4.11     3.95  -0.329    0.538
+#> 2 Faardrup   2.23     2.02   0.0587   0.426
+#> 3 Jyndevad   0.526    0.640 -0.0581   0.224
+#> 4 Silstrup   2.36     2.18   0.304    0.634
+#> 5 Vindum     3.05     2.26  -0.322    0.601
 
 varImp(downscaler_rf$model_general)
 #> rf variable importance
 #> 
 #>             Overall
 #> EC_00_25_cm 100.000
-#> red          12.822
-#> green         1.774
+#> red          12.637
+#> green         2.335
 #> blue          0.000
 ```
 
-## 3.5 Minimal objects
+### 3.5 Minimal objects
 
 As previously mentioned, the input map is optional (but recommended).
 Further options can omit prediction models from the results and turn off
@@ -367,7 +367,7 @@ downscaler_lite
 #> 5 Vindum       2.11  0.0594
 ```
 
-## Future additions
+## 4 Future additions
 
 - Option to pass additional arguments to `caret::train()`
 - Option to use a log transformation internally.

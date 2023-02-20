@@ -1,4 +1,4 @@
-# Extra tests
+# Script for tersting
 
 # install.packages("devtools")
 library(devtools)
@@ -43,7 +43,9 @@ for(i in 1:length(my_obs))
   )
 }
 
-# getwd() %>% paste0(., "/R/make_downscaler.R") %>% source()
+getwd() %>% paste0(., "/R/make_downscaler.R") %>% source()
+
+names(my_obs) <- NULL
 
 downscaler1 <- make_downscaler(
   obs           = my_obs,
