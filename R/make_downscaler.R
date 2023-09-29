@@ -4,7 +4,7 @@
 #' @param targ_name Name of target variable.
 #' @param cov List of SpatRaster objects containing the covariates for prediction.
 #' @param input SpatRaster or list of SpatRaster objects containing the coarse resolution input map.
-#' @param input_unc SpatRaster containing the uncertainty for the coarse-resolution input map.
+#' @param input_unc SpatRaster or list of SpatRaster objects containing the uncertainty for the coarse-resolution input map.
 #' @param model_type Model type passed to train. Ideally, I should use do.call, so users can pass a list of arguments to the training.
 #' @param make_maps Should the function produce maps for the input sites when run?
 #' @param unc_factor Multiplication factor for the uncertainties. Not implemented.
@@ -120,14 +120,20 @@ make_downscaler <- function(
   }
 
   if (!is.null(input)) {
-    # Extract input
-    if (!is.null(input_unc)) {
-      input <- c(input, input_unc)
-      inputnames <- c("input", "input_unc")
+    # Give names to input layers
+    if (!is.list(input)) {
+      if (!is.null(input_unc)) {
+        input <- c(input, input_unc)
+        inputnames <- c("input", "input_unc")
+      } else {
+        inputnames <- "input"
+      }
+      names(input) <- inputnames
     } else {
-      inputnames <- "input"
+
     }
-    names(input) <- inputnames
+    # Extract input
+
 
     listproj <- function(x) {
       out <- lapply(
