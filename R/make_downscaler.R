@@ -87,7 +87,9 @@ make_downscaler <- function(
   # check for names in observation objects
   # check for sitenames
   # Check for number of sites
-
+  if (length(targ_name) > 1) {
+    targ_name <- targ_name[1]
+  }
   targ_col <- targ_name
 
   if(is.null(names(obs))) {
