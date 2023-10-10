@@ -44,6 +44,7 @@ for(i in 1:length(my_obs))
 }
 
 getwd() %>% paste0(., "/R/make_downscaler.R") %>% source()
+getwd() %>% paste0(., "/R/check_downscaler.R") %>% source()
 
 names(my_obs) <- NULL
 

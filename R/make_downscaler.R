@@ -3,8 +3,7 @@
 #' @param obs List of spatvector points with observations.
 #' @param targ_name Name of target variable.
 #' @param cov List of SpatRaster objects containing the covariates for prediction.
-#' @param input SpatRaster or list of SpatRaster objects containing the coarse resolution input map.
-#' @param input_unc SpatRaster or list of SpatRaster objects containing the uncertainty for the coarse-resolution input map.
+#' @param input SpatRaster or list of SpatRaster objects containing the coarse resolution input map. If the SpatRaster object(s) have two layers, the second layer will be taken to represent uncertainties in the first layer. If there are more than two layers, only the first two layers will be used.
 #' @param model_type Model type passed to train. Ideally, I should use do.call, so users can pass a list of arguments to the training.
 #' @param make_maps Should the function produce maps for the input sites when run?
 #' @param unc_factor Multiplication factor for the uncertainties. Not implemented.
@@ -57,7 +56,6 @@ make_downscaler <- function(
     targ_name     = NULL,
     cov           = NULL,
     input         = NULL,
-    input_unc     = NULL,
     model_type    = "lm",
     make_maps     = TRUE,
     unc_factor    = 1,
@@ -125,7 +123,6 @@ make_downscaler <- function(
   }
 
   if (is.null(input)) {
-    input_unc    <- NULL
     input_as_cov <- FALSE
     scale_obs    <- FALSE
     center_obs   <- FALSE
@@ -141,18 +138,21 @@ make_downscaler <- function(
     }
   }
 
+  give_input_names <- function(x) {
+    if (terra::nlyr(x) > 2) {
+      x %<>% terra::subset(., subset = 1:2)
+    }
+    terra::names(x) <- c("input", "input_unc")[1:terra::nlyr(x)]
+    return(x)
+  }
+  # Give names to input layers
   if (!is.null(input)) {
-    # Give names to input layers
     if (!is.list(input)) {
-      if (!is.null(input_unc)) {
-        input <- c(input, input_unc)
-        inputnames <- c("input", "input_unc")
-      } else {
-        inputnames <- "input"
-      }
-      names(input) <- inputnames
+      input %<>% give_input_names()
+      inputnames <- terra::names(input)
     } else {
-
+      input %<>% lapply(., give_input_names)
+      inputnames <- terra::names(input[[1]])
     }
     # Extract input
     listproj <- function(x) {
@@ -181,73 +181,75 @@ make_downscaler <- function(
 
     # Extract input values
     for (i in 1:length(sitenames)) {
+      resample_project_mask <- function(x, y) {
+        if (terra::crs(x, proj = TRUE) == terra::crs(y, proj = TRUE)) {
+          x %<>% terra::resample(., y)
+        } else {
+          x %<>% terra::project(., y)
+        }
+        x %<>% terra::mask(., y)
+        return(x)
+      }
       # Project or resample input maps
-      if (crs_in[[i]] == crs_cov[[i]]) {
-        input_resampled[[i]] <- input %>%
-          terra::resample(
-            .,
-            cov[[i]][[1]]
-          )
+      if (is.list(input)) {
+        input_resampled[[i]] <- input[[i]] %>%
+          resample_project_mask(., cov[[i]][[1]])
       } else {
         input_resampled[[i]] <- input %>%
-          terra::project(
-            .,
-            cov[[i]][[1]]
-          )
+          resample_project_mask(., cov[[i]][[1]])
       }
-
       # Extract raw input values
       if (crs_in[[i]] == crs_obs[[i]]) {
-        obs[[i]]$input_raw <- terra::extract(
-          input,
-          obs[[i]],
-          ID = FALSE,
-          layer = 1,
-          raw = TRUE
-        )
-      } else {
-        obs[[i]]$input_raw <- obs[[i]] %>%
-          terra::project(
-            .,
-            crs_in[[i]]
-          ) %>%
-          terra::extract(
-            input,
-            .,
+        if (is.list(input)) {
+          obs[[i]]$input_raw <- terra::extract(
+            input[[i]],
+            obs[[i]],
             ID = FALSE,
             layer = 1,
             raw = TRUE
           )
+        } else {
+          obs[[i]]$input_raw <- terra::extract(
+            input,
+            obs[[i]],
+            ID = FALSE,
+            layer = 1,
+            raw = TRUE
+          )
+        }
+      } else {
+        if (is.list(input)) {
+          obs[[i]]$input_raw <- obs[[i]] %>%
+            terra::project(., crs_in[[i]]) %>%
+            terra::extract(
+              input[[i]],
+              .,
+              ID = FALSE,
+              layer = 1,
+              raw = TRUE
+            )
+        } else {
+          obs[[i]]$input_raw <- obs[[i]] %>%
+            terra::project(., crs_in[[i]]) %>%
+            terra::extract(
+              input,
+              .,
+              ID = FALSE,
+              layer = 1,
+              raw = TRUE
+            )
+        }
       }
-
       # Process resampled input maps
-      input_resampled[[i]] %<>%
-        terra::mask(
-          .,
-          cov[[i]][[1]]
-        )
-
       mean_in[[i]] <- input_resampled[[i]] %>%
-        terra::global(
-          .,
-          na.rm = TRUE
-        ) %>%
+        terra::global(., na.rm = TRUE) %>%
         unlist()
-
       if (flatten_input) {
         input_resampled[[i]] <- cov[[i]][[1]] * 0 + mean_in[[i]]
       }
-
       names(input_resampled[[i]]) <- inputnames
-
-      obs[[i]] %<>%
-        terra::extract(
-          input_resampled[[i]],
-          .,
-          bind = TRUE
-        )
+      obs[[i]] %<>% terra::extract(input_resampled[[i]], ., bind = TRUE)
     }
-
     mean_in %<>% dplyr::bind_rows(.)
   }
 
@@ -367,8 +369,7 @@ make_downscaler <- function(
 
   covnames <- names(cov[[1]])
   if(input_as_cov) {
-    if (!is.null(input_unc)) covnames %<>% c("input_unc", .)
-    if (!is.null(input)) covnames %<>% c("input", .)
+    if (!is.null(input)) covnames %<>% c(inputnames, .)
   }
 
   for (i in 1:length(sitenames)) {
