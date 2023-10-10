@@ -18,6 +18,7 @@
 #' @param keep_obs Append the modified observations to the output object?
 #' @param keep_cov Append the covariates to the output object?
 #' @param keep_models Keep the models for mapping as part of the output object?
+#' @param ignore_check Should the function skip the check of the input variables?
 #' @returns A downscaler model
 #' @export
 #' @importFrom Rdpack reprompt
@@ -69,31 +70,50 @@ make_downscaler <- function(
     plot_results  = FALSE,
     keep_obs      = FALSE,
     keep_cov      = FALSE,
-    keep_models   = TRUE
+    keep_models   = TRUE,
+    ignore_check  = FALSE
 ) {
   # To do:
-  # Include option to use input map as a covariate or not [OK]
-  # The use of input maps should be optional [OK]
-  # Include a step to get the final predictions when make_maps is FALSE [OK]
+
   # Include log transformation
   # Use do.call to train the models
   # Add bootstrapping sequence for uncertainty assessment
-  # Include random alterations to basemap in this procedure, based on uncertainty
+  # Include random alterations to input map in this procedure, based on uncertainty
 
   # Add checks for consistency
-
-  # check for number and names of sites
-  # check for covariate names
-  # check for names in observation objects
-  # check for sitenames
-  # Check for number of sites
+  if (!ignore_check) {
+    check_results <- check_downscaler(
+      obs = obs,
+      cov = cov,
+      input = input,
+      targ_name = targ_name
+    )
+    if (check_results$stop_function) {
+      print(check_results)
+      stop()
+    }
+  }
   if (length(targ_name) > 1) {
     targ_name <- targ_name[1]
+    message(
+      strwrap(
+        prefix = "\n",
+        initial = "",
+        "`targ_name` has more than one element. The function will only use the first element."
+      )
+    )
   }
   targ_col <- targ_name
 
   if(is.null(names(obs))) {
     sitenames <- paste0("Site_", c(1:length(obs)))
+    message(
+      strwrap(
+        prefix = "\n",
+        initial = "",
+        "No site names provided. The function will generate site names."
+      )
+    )
   } else {
     sitenames <- names(obs) %>% make.names(unique = TRUE)
   }
@@ -135,8 +155,6 @@ make_downscaler <- function(
 
     }
     # Extract input
-
-
     listproj <- function(x) {
       out <- lapply(
         x,
@@ -150,8 +168,12 @@ make_downscaler <- function(
       )
       return(out)
     }
-
-    crs_in  <- terra::crs(input, proj = TRUE)
+    if (is.list(input)) {
+      crs_in <- input %>% listproj()
+    } else {
+      crs_in <- terra::crs(input, proj = TRUE) %>%
+        rep(times = length(sitenames))
+    }
     crs_cov <- cov %>% listproj
     crs_obs <- obs %>% listproj
     input_resampled <- list()
@@ -160,7 +182,7 @@ make_downscaler <- function(
     # Extract input values
     for (i in 1:length(sitenames)) {
       # Project or resample input maps
-      if (crs_in == crs_cov[[i]]) {
+      if (crs_in[[i]] == crs_cov[[i]]) {
         input_resampled[[i]] <- input %>%
           terra::resample(
             .,
@@ -175,7 +197,7 @@ make_downscaler <- function(
       }
 
       # Extract raw input values
-      if (crs_in == crs_obs[[i]]) {
+      if (crs_in[[i]] == crs_obs[[i]]) {
         obs[[i]]$input_raw <- terra::extract(
           input,
           obs[[i]],
@@ -187,7 +209,7 @@ make_downscaler <- function(
         obs[[i]]$input_raw <- obs[[i]] %>%
           terra::project(
             .,
-            crs_in
+            crs_in[[i]]
           ) %>%
           terra::extract(
             input,
